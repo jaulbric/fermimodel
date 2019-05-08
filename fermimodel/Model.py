@@ -7,6 +7,8 @@ import AddCatalogSources
 import SimulationSources
 import BuildRegion
 
+from Exceptions import AddSourceError
+
 class model:
     def __init__(self, name='mymodel', eventsfile=None, catalog=None, out=None, roi=None, frame='fk5', unit='degree', allsky=False, model_type='likelihood'):
         """Model class containing methods and attributes for building models for use with Fermitools
@@ -78,7 +80,7 @@ class model:
             else:
                 print "{0} : {1}".format(key, val)
 
-    def loadCatalog(self, catalog=None, GDfile=None, GDname='GalacticDiffuse', ISOfile=None, ISOname='IsotropicDiffuse', normsOnly=False, extDir='', radLim=-1, maxRad=None, ExtraRad=10., sigFree=5., varFree=True, psForce=False, E2CAT=False, makeRegion=False, GIndexFree=False, wd=None, oldNames=False, emin=1.e2, emax=5.e5, frame='fk5', extSrcRes='force-point', apply_mask=False, GDflux=8.4631675, ISOflux=0.):
+    def loadCatalog(self, catalog=None, GDfile=None, GDname='GalacticDiffuse', ISOfile=None, ISOname='IsotropicDiffuse', ISOpath="$(FERMI_DIR)/refdata/fermi/galdiffuse/isotropic_allsky.fits", normsOnly=False, extDir='', radLim=-1, maxRad=None, ExtraRad=10., sigFree=5., varFree=True, psForce=False, E2CAT=False, makeRegion=False, GIndexFree=False, wd=None, oldNames=False, emin=1.e2, emax=5.e5, frame='fk5', extSrcRes='force-point', apply_mask=False, GDflux=8.4631675, ISOflux=0.):
         """Include sources in the catalog to the model. Optionaly include a galactic and isotropic diffuse models.
 
         Parameters
@@ -90,9 +92,11 @@ class model:
         GDname : str (Optional)
             Name of galactic diffuse emission model
         ISOfile : str (Optional)
-            Path to isotropic diffuse emission file
+            Path to isotropic diffuse emission spectrum file
         ISOname : str (Optional)
             Name of isotropic diffuse emission file
+        ISOpath : str (Optional)
+            Path to isotropic diffuse spatial file
         normsOnly : bool (Optional)
             Flag to only set normalization parameters free
         extDir : str (Optional)
@@ -137,6 +141,10 @@ class model:
         elif catalog is None:
             catalog = self.srcs
         
+        self.radLim=(self.roi[2] if radLim<=0 else radLim)
+        self.maxRad=(self.radLim if maxRad==None else maxRad)
+        if (self.maxRad < self.radLim) and (self.model_type == 'likelihood'):
+            print "NOTE: maxRad ({0:.1f} deg) is less than radLim ({1:.1f} deg), meaning maxRad parameter is useless".format(self.maxRad,self.radLim)
 
         self.var = varFree
         self.psF = psForce
@@ -144,6 +152,7 @@ class model:
         self.nO = normsOnly
         extDir = (extDir if extDir != '' else '$(FERMI_DIR)/data/pyBurstAnalysisGUI/templates')
         self.extD = extDir
+        self.oldNames = oldNames
         self.ER = ExtraRad
         self.sig = sigFree
         self.reg = makeRegion
@@ -156,10 +165,11 @@ class model:
         print 'Creating file and adding sources from Catalog {0}'.format(catalog)
 
         if self.model_type == 'simulation':
-            self.model, self.Sources = AddCatalogSources.simulation(srcs=catalog, roi=self.roi, var=self.var, psF=self.psF, E2C=self.E2C, nO=self.nO, extDir=extDir, ER=self.ER, sig=self.sig, reg=self.reg, GIF=self.GIF, wd=self.wd, extSrcRes=self.extSrcRes, GDfile=GDfile, GDname=GDname, ISOfile=ISOfile, ISOname=ISOname, oldNames=oldNames, emin=emin, emax=emax, frame=frame, apply_mask=apply_mask, GDflux=GDflux, ISOflux=ISOflux)
+            # self.model, self.Sources = AddCatalogSources.simulation(srcs=catalog, roi=self.roi, var=self.var, psF=self.psF, E2C=self.E2C, nO=self.nO, extD=self.extD, ER=self.ER, sig=self.sig, reg=self.reg, regFile=self.regFile, GIF=self.GIF, wd=self.wd, extSrcRes=self.extSrcRes, GD=GDfile, GDn=GDname, ISO=ISOfile, ISOn=ISOname, ISOpath=ISOpath, oldNames=oldNames, emin=emin, emax=emax, frame=frame, apply_mask=apply_mask, GDflux=GDflux, ISOflux=ISOflux)
+            self.model, self.Sources = AddCatalogSources.simulation(srcs=catalog, roi=self.roi, psF=self.psF, E2C=self.E2C, nO=self.nO, extD=self.extD, ER=self.ER, reg=self.reg, regFile=self.regFile, wd=self.wd, extSrcRes=self.extSrcRes, GD=GDfile, GDn=GDname, ISO=ISOfile, ISOn=ISOname, ISOpath=ISOpath, oldNames=oldNames, emin=emin, emax=emax, frame=frame, apply_mask=apply_mask, GDflux=GDflux, ISOflux=ISOflux)
             self.srcs = catalog
         elif self.model_type == 'likelihood':
-            self.model, self.Sources = AddCatalogSources.likelihood(srcs=catalog, roi=self.roi, var=self.var, psF=self.psF, E2C=self.E2C, nO=self.nO, extDir=extDir, ER=self.ER, sig=self.sig, reg=self.reg, GIF=self.GIF, wd=self.wd, GDfile=GDfile, GDname=GDname, ISOfile=ISOfile, ISOname=ISOname, oldNames=oldNames, frame=frame)
+            self.model, self.Sources = AddCatalogSources.likelihood(srcs=catalog, roi=self.roi, var=self.var, psF=self.psF, E2C=self.E2C, nO=self.nO, extD=self.extD, radLim=self.radLim, maxRad=self.maxRad, ER=self.ER, sig=self.sig, reg=self.reg, regFile=self.regFile, GIF=self.GIF, wd=self.wd, GD=GDfile, GDn=GDname, ISO=ISOfile, ISOn=ISOname, frame=frame, oldNames=self.oldNames)
             self.srcs = catalog
         else:
             raise IOError("Model type must be either simulation or likelihood. To {0}".format(self.model_type))
@@ -192,10 +202,7 @@ class model:
         if self.model_type == 'simulation':
             try:
                 source_library = self.model.firstChild
-                source_library.writexml(open(filename, "wb"), indent="", addindent="\t", newl="\n")
-                # print self.model.toprettyxml()
-                # for node in self.model.childNodes:
-                    # node.writexml(open(filename, "wb"), indent="", addindent="  ", newl="\n")
+                source_library.writexml(open(filename, "wb"), indent="", addindent="  ", newl="\n")
                 return filename
             except AttributeError as e:
                 if not hasattr(self, "model"):
@@ -230,11 +237,9 @@ class model:
         """
         if directory is None:
             directory = self.wd
+
         if out is None:
-            if os.path.isabs(self.out):
-                out = os.path.splitext(os.path.basename(self.out))[0] + ".txt"
-            else:
-                out = os.path.splitext(self.out)[0] + ".txt"
+            out = self.name + ".txt"
 
         filename = os.path.join(directory,out)
 

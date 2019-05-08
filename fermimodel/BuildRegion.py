@@ -1,15 +1,14 @@
 from astropy.coordinates import SkyCoord
 
+from Exceptions import BuildRegionError
 # class BuildRegionError(Exception):
 #     """Raise when the region cannot be built"""
 #     pass
 
-class BuildRegion:
+class Region:
     def __init__(self, regFile, Sources, frame='fk5', model_type='likelihood'):
         self.regFile = regFile
         self.Sources = Sources
-        
-        self.build(frame, model_type)
 
     def build(self, frame, model_type):
         """Build a DS9 region file
@@ -26,10 +25,13 @@ class BuildRegion:
 
         """ 
         myreg = open(self.regFile,'w')#note that this will overwrite previous region files of the same name
-        myreg.write('# Region File format: DS9 version 4.0')#I don't actually know, but I think it's one of the later ones, need to verify
+        myreg.write('# Region File format: DS9 version 8.0.1')#I don't actually know, but I think it's one of the later ones, need to verify
         myreg.write('\n# Created by fermimodel')
         myreg.write('\nglobal font="roman 10 normal" move =0')
         for k, src in self.Sources.items():
+            if src['diffuse']:
+                continue
+
             if frame in ['galactic', 'GALACTIC']:
                 xcoord = src['glon']
                 ycoord = src['glat']
@@ -69,3 +71,7 @@ class BuildRegion:
         
         myreg.close()
         return self.regFile
+
+def buildRegion(regFile, Sources, frame='fk5', model_type='likelihood'):
+    region = Region(regFile, Sources, frame='fk5', model_type='likelihood')
+    return region.build(frame, model_type)

@@ -1,34 +1,31 @@
-# import Model
-# import AddCatalogSources
-# import BuildRegion
-# import LikelihoodSpectra
-# import SimulationSources
-# import Tools
+class FermiModelError(Exception):
+	"""General exception for the package"""
+	pass
 
-class GetFluxError(Exception):
+class GetFluxError(FermiModelError):
     """Raise when we cannot calculate the flux of the source from parameters"""
     pass
 
-class WriteSpectrumError(Exception):
+class WriteSpectrumError(FermiModelError):
     """Raised when spectrum type cannot be written to file."""
     pass
 
-class HeaderCheckError(Exception):
+class HeaderCheckError(FermiModelError):
     """Raised when diffuse emission is missing essential headers."""
     pass
 
-class ExtendedTemplateError(Exception):
+class ExtendedTemplateError(FermiModelError):
     """Raise when an extended template cannot be found."""
     pass
 
-class BuildRegionError(Exception):
+class BuildRegionError(FermiModelError):
     """Raise when the region cannot be built"""
     pass
 
-class AddSourceError(Exception):
+class AddSourceError(FermiModelError):
     """Raised when model cannot add a source."""
     pass
 
-class SpectrumError(Exception):
+class SpectrumError(FermiModelError):
     """Raised when input spectrum type does not match allowed spectrum types"""
     pass

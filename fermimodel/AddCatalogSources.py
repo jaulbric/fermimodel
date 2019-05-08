@@ -11,28 +11,42 @@ import LikelihoodSpectra
 import SimulationSources
 import maskFits
 
-class likelihood:
+from Exceptions import AddSourceError
+from Exceptions import BuildRegionError
+from Exceptions import HeaderCheckError
+
+class likelihoodModel:
     def __init__(self, **params):
         for key, val in params.items():
             setattr(self, key, val)
 
         self.varValue = 72.44
 
+    def parseCatalog(self, catalog=None):
+        if (catalog is None) and (self.srcs is not None):
+            catalog = self.srcs
+        elif catalog is None:
+            raise IOError("No catalog was input")
+        else:
+            self.srcs = catalog
+
         extension = os.path.splitext(self.srcs)[-1]
         if extension == '.xml':
-            self.model, self.Sources = self.xml()
+            model, Sources = self.xml()
         elif extension in ['.fits', '.fit']:
-            self.model, self.Sources = self.fits()
+            model, Sources = self.fits()
         else:
             raise IOError("{0} is not a compatible catalog.".format(self.srcs))
 
+        return model, Sources
+
     def xml(self):
         inputXml = minidom.parse(self.srcs)
-        outputXml = minidom.getDOMImplementation().createDocument(None, 'source_library', None)
-        outputXml.documentElement.setAttribute('title', 'source_library')
+        model = minidom.getDOMImplementation().createDocument(None, 'source_library', None)
+        model.documentElement.setAttribute('title', 'source_library')
         catalog = inputXml.getElementsByTagName('source')
         Sources = {}
-        prSrcNum = 0
+        ptSrcNum = 0
         extSrcNum = 0
 
         for src in catalog:
@@ -73,17 +87,18 @@ class likelihood:
                 
                 if self.oldNames:#if you want the same naming convention as in make1FGLxml.py and make2FGLxml.py, e.g., preceeded by an underscore and no spaces
                     sn = '_' + sname.replace(' ', '')
-                varIdx = float(src.getAttribute('Variability_Index'))
-                Sources[sname] = {'ra':srcRA, 'dec':srcDEC, 'glon':srcGL, 'glat':srcGB, 'E':Ext, 'stype':str(specType)}
-                specOut = outputXml.createElement('spectrum')
+                # varIdx = float(src.getAttribute('Variability_Index'))
+                varIdx = 0.
+                Sources[sname] = {'ra':srcRA, 'dec':srcDEC, 'glon':srcGL, 'glat':srcGB, 'E':Ext, 'stype':str(specType), 'diffuse':False}
+                specOut = model.createElement('spectrum')
                 
                 if str(specType) == 'PLSuperExpCutoff2':
                     specOut.setAttribute('type', 'PLSuperExpCutoff')
                 else:
                     specOut.setAttribute('type', specType)
                 
-                spatialOut = outputXml.createElement('spatialModel')
-                srcOut = outputXml.createElement('source')
+                spatialOut = model.createElement('spatialModel')
+                srcOut = model.createElement('source')
                 srcOut.setAttribute('name', sname)
                 srcOut.setAttribute('ROI_Center_Distance',"%.2f"%dist)
                 
@@ -129,14 +144,14 @@ class likelihood:
                     if str(spatType) == 'SpatialMap':
                         spatialOut.setAttribute('type','SpatialMap')
                         spatialOut.setAttribute('map_based_integral','true')
-                        efile = os.path.join(self.extD, spatial[0].getAttribute('file'))
+                        efile = os.path.join(self.extD, os.path.basename(spatial[0].getAttribute('file')))
                         spatialOut.setAttribute('file',efile)
                         print 'Extended source {0} in ROI, make sure {1} is the correct path to the extended template.'.format(sname, efile)
                     else:#have to do above to get correct extended source template file localtion
                         spatialOut.setAttribute('type', str(spatType))
                         for p in spatPars:#for radial disks and gaussians, can just do the following
                             spatialOut.appendChild(Tools.parameter_element("0","%s"%str(p.getAttribute('name')),"%s"%str(p.getAttribute('max')),"%s"%str(p.getAttribute('min')),"%s"%str(p.getAttribute('scale')),"%s"%str(p.getAttribute('value'))))
-                            print 'Extended source {0} in ROI, with {1} spatial model.'.format(sname, str(spatType))
+                        print 'Extended source {0} in ROI, with {1} spatial model.'.format(sname, str(spatType))
                     
                     srcOut.setAttribute('type', 'DiffuseSource')
                     extSrcNum += 1
@@ -150,13 +165,13 @@ class likelihood:
                 
                 srcOut.appendChild(specOut)
                 srcOut.appendChild(spatialOut)
-                outputXml.documentElement.appendChild(srcOut)
+                model.documentElement.appendChild(srcOut)
         
         if self.GD is not None:
-            gal = outputXml.createElement('source')
+            gal = model.createElement('source')
             gal.setAttribute('name', self.GDn)
             gal.setAttribute('type', 'DiffuseSource')
-            galspec = outputXml.createElement('spectrum')
+            galspec = model.createElement('spectrum')
             galspec.setAttribute('type', 'PowerLaw')
             #galspec.setAttribute('apply_edisp','false')
             galspec.appendChild(Tools.parameter_element("1", "Prefactor", "10", "0", "1", "1"))
@@ -165,35 +180,30 @@ class likelihood:
             else:
                 galspec.appendChild(Tools.parameter_element("0", "Index", "1", "-1", "1", "0"))
             galspec.appendChild(Tools.parameter_element("0", "Scale", "1e6", "2e1", "1", "100"))
-            galspatial = outputXml.createElement('spatialModel')
+            galspatial = model.createElement('spatialModel')
             galspatial.setAttribute('type', 'MapCubeFunction')
             galspatial.setAttribute('file', self.GD)
             galspatial.appendChild(Tools.parameter_element("0", "Normalization", "1e3", "1e-3", "1", "1"))
             gal.appendChild(galspec)
             gal.appendChild(galspatial)
-            outputXml.documentElement.appendChild(gal)
+            model.documentElement.appendChild(gal)
     
         if self.ISO is not None:
-            iso = outputXml.createElement('source')
+            iso = model.createElement('source')
             iso.setAttribute('name', self.ISOn)
             iso.setAttribute('type', 'DiffuseSource')
-            isospec = outputXml.createElement('spectrum')
+            isospec = model.createElement('spectrum')
             isospec.setAttribute('type', 'FileFunction')
             isospec.setAttribute('file', self.ISO)
             isospec.setAttribute('apply_edisp','false')
             isospec.appendChild(Tools.parameter_element("1", "Normalization", "10", "0.01", "1", "1"))
-            isospatial = outputXml.createElement('spatialModel')
+            isospatial = model.createElement('spatialModel')
             isospatial.setAttribute('type', 'ConstantValue')
             isospatial.appendChild(Tools.parameter_element("0", "Value", "10", "0", "1", "1"))
             iso.appendChild(isospec)
             iso.appendChild(isospatial)
-            outputXml.documentElement.appendChild(iso)
+            model.documentElement.appendChild(iso)
         
-        xmlStr = outputXml.toprettyxml(' ').splitlines(True)
-        outStr = filter(lambda xmlStr: len(xmlStr) and not xmlStr.isspace(), xmlStr)
-        outfile=open(self.out,'w')
-        outfile.write(''.join(outStr))
-        outfile.close()
         if not self.psF:
             print 'Added {0} point sources and {1} extended sources'.format(ptSrcNum, extSrcNum)
             if extSrcNum > 0:
@@ -204,12 +214,12 @@ class likelihood:
         if self.reg:
             print "Building DS9 region file..."
             try:
-                regFile = BuildRegion.BuildRegion(self.regFile, Sources, model_type='likelihood', frame=self.frame)
+                regFile = BuildRegion.buildRegion(self.regFile, Sources, model_type='likelihood', frame=self.frame)
                 print "Region built. File is located at {0}".format(regFile)
             except BuildRegionError as e:
                 print e
         
-        return outputXml, Sources
+        return model, Sources
 
 
     def fits(self):
@@ -271,25 +281,26 @@ class likelihood:
             model.documentElement.appendChild(comment)
 
             for n, plf, lpf, cof, r, d, gl, gb, p, pli, lpi, lpb, pleci, plecef, plecei, t, TS, En, dist in zip(name[idx], plflux[idx], lpflux[idx], coflux[idx], ra[idx], dec[idx], glon[idx], glat[idx], pivot[idx], plIndex[idx], lpIndex[idx], lpbeta[idx], plecIndex[idx], plecexpFact[idx], plecexpIndex[idx], spectype[idx], Sigvals[idx], EName[idx], distances[idx]):
+                # Create source
                 source = model.createElement('source')
                 vi = 0#remove later if we ever get a similar variability index thing going on
                 E = (True if n[-1] == 'e' else False)
                 if E and not self.psF:
-                    Sources[En] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'E':E}
+                    Sources[En] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'E':E, 'diffuse':False}
                     extSrcNum += 1
                     source.setAttribute('ROI_Center_Distance', "{0:.3f}".format(dist))
                     source.setAttribute('name', En)
                     source.setAttribute('type', "DiffuseSource")
                 else:
                     if E and not self.E2C:#even if forcing all to point sources, use extended name except if E2CAT flag is set
-                        Sources[En] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'E':E}
+                        Sources[En] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'E':E, 'diffuse':False}
                         source.setAttribute('ROI_Center_Distance', "{0:.3f}".format(dist))
                         source.setAttribute('name', En)
                         source.setAttribute('type', "PointSource")
                     else:
-                        Sources[n] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'E':E}
-                        if oldNames:
-                            srcname = '_' + srcname.replace(' ', '')
+                        Sources[n] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'E':E, 'diffuse':False}
+                        if self.oldNames:
+                            srcname = '_' + n.replace(' ', '')
                             source.setAttribute('ROI_Center_Distance', "{0:.3f}".format(dist))
                             source.setAttribute('name', srcname)
                             source.setAttribute('type', "PointSource")
@@ -353,11 +364,11 @@ class likelihood:
                     else:
                         spatialModel.setAttribute('type', efunc)
                         spatialModel.appendChild(Tools.parameter_element("0", "RA", "360.0", "-360.0", "1.0", "{0}".format(eR)))
-                        spatialMap.appendChild(Tools.parameter_element("0", "DEC", "90.0", "-90.0", "1.0", "{0}".format(eD)))
+                        spatialModel.appendChild(Tools.parameter_element("0", "DEC", "90.0", "-90.0", "1.0", "{0}".format(eD)))
                         if efunc == 'RadialDisk':
-                            spatialMap.appendChild(Tools.parameter_element("0", "Radius", "10.0", "0.0", "1.0", "{0}".format(eSize)))
+                            spatialModel.appendChild(Tools.parameter_element("0", "Radius", "10.0", "0.0", "1.0", "{0}".format(eSize)))
                         else:
-                            spatialMap.appendChild(Tools.parameter_element("0", "Sigma", "10.0", "0.0", "1.0", "{0}".format(eSize)))
+                            spatialModel.appendChild(Tools.parameter_element("0", "Sigma", "10.0", "0.0", "1.0", "{0}".format(eSize)))
                         
                         print 'Extended source {0} in ROI with {1} spatial model.'.format(En,efunc)
                 else:
@@ -399,13 +410,12 @@ class likelihood:
             spatialModel.setAttribute('file', self.GD)
             spatialModel.setAttribute('type', "MapCubeFunction")
             spatialModel.appendChild(Tools.parameter_element("0", "Normalization", "1e3", "1e-3", "1.0", "1.0"))
-            (src,) = (Name + spec + skydir,)
-            galdiff = pS(src).getElementsByTagName('source')[0]
-            galdiff.writexml(model)
-            model.write('\n')
+            
             source.appendChild(spec)
             source.appendChild(spatialModel)
             model.documentElement.appendChild(source)
+            Sources[self.GDn] = {'ra':266.4049962340225, 'dec':-28.936172403391776, 'glon':0., 'glat':0., 'E':True, 'stype':'PowerLaw', 'diffuse':True, 'free':True}
+            extSrcNum += 1
 
         # Add isotropic diffuse
         if self.ISO is not None:
@@ -423,64 +433,45 @@ class likelihood:
             source.appendChild(spec)
             source.appendChild(spatialModel)
             model.documentElement.appendChild(source)
+            Sources[self.ISOn] = {'ra':266.4049962340225, 'dec':-28.936172403391776, 'glon':0., 'glat':0., 'E':True, 'stype':'FileFunction', 'diffuse':True, 'free':True}
         
         if self.reg:
             print "Building DS9 region file..."
             try:
-                regFile = BuildRegion.BuildRegion(self.regFile, Sources, model_type='likelihood', frame=self.frame)
+                regFile = BuildRegion.buildRegion(self.regFile, Sources, model_type='likelihood', frame=self.frame)
                 print "Region built. File is located at {0}".format(regFile)
             except BuildRegionError as e:
                 print e
         
         return model, Sources
 
-class simulation:
+class simulationModel:
     def __init__(self, **params):
         for key, val in params.items():
             setattr(self, key, val)
 
         self.varValue = 72.44
 
+    def parseCatalog(self, catalog=None):
+        if (catalog is None) and (self.srcs is not None):
+            catalog = self.srcs
+        elif catalog is None:
+            raise IOError("No catalog was input.")
+        else:
+            self.srcs = catalog
+
         extension = os.path.splitext(self.srcs)[-1]
         if extension == '.xml':
-            self.model, self.Sources = self.xml()
+            model, Sources = self.xml()
         elif extension in ['.fits', '.fit']:
-            self.model, self.Sources = self.fits()
+            model, Sources = self.fits()
         else:
             raise IOError("{0} is not a compatible catalog.".format(self.srcs))
 
+        return model, Sources
+
     def fits(self):
-        """Generate the model from .fits catalog for use with gtobssim.
-    
-        Parameters
-        ----------
-        GD : str
-            Path to galactic diffuse file
-        GDn : str
-            Galactic Diffuse name in model
-        ISO : str
-            Path to isotropic diffuse file
-        ISOn : str
-            Isotropic diffuse name in model
-        oldNames : bool
-            Name sources using old naming convention
-        emin : float
-            Minimum energy for integrated flux
-        emax : float
-            Maximum energy for integrated flux
-        frame : str
-            Coordinate frame for source directions
-        apply_mask : bool
-            Apply region of interest mask to diffuse emission models
-
-        Returns
-        -------
-        model : file
-            this model
-        Sources : dict
-            List of sources included in model
-
-        """
+        """Generate the model from .fits catalog for use with gtobssim."""
         model = minidom.getDOMImplementation().createDocument(None,'source_library',None)
         model.documentElement.setAttribute('title', 'source_library')
 
@@ -545,7 +536,7 @@ class simulation:
                 semiminor = None
                 posang = None
                 spatialfunc = ''
-                if E and not sL.psF:
+                if E and not self.psF:
                     name_idx = np.where(extName == En)[0]
                     if len(name_idx) == 0:
                         print 'coult not find a match for {0} in the list:'.format(En)
@@ -581,10 +572,10 @@ class simulation:
                         source, modeled_extended = SimulationSources.AddExtendedSource(srcname, t, spatialfunc, directory=self.wd, extDir=self.extD, ra=r, dec=d, glon=gl, glat=gb, major_axis=semimajor, minor_axis=semiminor, position_angle=posang, efile=efile, emin=self.emin, emax=self.emax, frame=self.frame, resolution=self.extSrcRes, pivot_energy=p, pl_flux_density=plf, lp_flux_density=lpf, plec_flux_density=cof, pl_index=pli, lp_index=lpi, lp_beta=lpb, plec_index=pleci, plec_expfactor=plecef, plec_exp_index=plecei)
                         model.documentElement.appendChild(source)
                         if modeled_extended:
-                            Sources[srcname] = {'ra': r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'Spatial_Function':spatialfunc, 'extFile':efile, 'E':True}
+                            Sources[srcname] = {'ra': r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'Spatial_Function':spatialfunc, 'extFile':efile, 'E':True, 'diffuse':False}
                             extSrcNum += 1
                         else:
-                            Sources[srcname] = {'ra': r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'Spatial_Function':spatialfunc, 'extFile':efile, 'E':False}
+                            Sources[srcname] = {'ra': r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'Spatial_Function':spatialfunc, 'extFile':efile, 'E':False, 'diffuse':False}
                             ptSrcNum += 1
                     except AddSourceError as e:
                         print "Error encountered when adding extended source {0}.".format(srcname)
@@ -595,7 +586,7 @@ class simulation:
                     try:
                         source = SimulationSources.AddPointSource(srcname, t, self.emin, self.emax, self.wd, ra=r, dec=d, glon=gl, glat=gb, frame=self.frame, pivot_energy=p, pl_flux_density=plf, lp_flux_density=lpf, plec_flux_density=cof, pl_index=pli, lp_index=lpi, lp_beta=lpb, plec_index=pleci, plec_expfactor=plecef, plec_exp_index=plecei)
                         model.documentElement.appendChild(source)
-                        Sources[srcname] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'E':E}
+                        Sources[srcname] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'Spatial_Function':'PointSource', 'extFile':'', 'E':E, 'diffuse':False}
                         ptSrcNum += 1
                     except AddSourceError as e:
                         print "Error encountered when adding point source {0}.".format(srcname)
@@ -607,8 +598,8 @@ class simulation:
         if self.GDn is not None:
             headers_present = False
             try:
-                headers_present = Tools.header_check(self.GD)
-            except DiffuseHeaderError as e:
+                headers_present = Tools.checkHeader(self.GD)
+            except HeaderCheckError as e:
                 print e
 
             if headers_present:
@@ -620,11 +611,12 @@ class simulation:
                     else:
                         self.GDflux = 0.
 
-                if apply_mask:
+                if self.apply_mask:
                     gd, ext = os.path.splitext(os.path.basename(self.GD))
-                    self.GD, self.GDflux = maskFits.MaskFits(self.GD, out=os.path.join(self.wd, gd + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER, radius2=None, angle=0., center=(self.roi[0], self.roi[1]), clobber=True)
                     print "Masking Galactic Diffuse model..."
-                    print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2], self.roi[0], self.roi[1])
+                    print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2] + self.ER, self.roi[0], self.roi[1])
+                    self.GD, self.GDflux = maskFits.MaskFits(self.GD, out=os.path.join(self.wd, gd + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER, radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='degree', clobber=True)
+                    print "Done."
                 
                 source = model.createElement('source')
                 source.setAttribute('name', self.GDn)
@@ -641,12 +633,12 @@ class simulation:
                 spec.appendChild(spectrumClass)
                 spec.appendChild(use_spectrum)
 
-                comment = model.createComment("This is v07 of the diffuse emission model. Integrated flux from mapcube is {0} (#/m^2/s)".format(GDflux*1.e4))
+                comment = model.createComment("This is v07 of the diffuse emission model. Integrated flux from mapcube is {0} (#/m^2/s)".format(self.GDflux*1.e4))
                 source.appendChild(comment)
 
                 source.appendChild(spec)
                 model.documentElement.appendChild(source)
-                Sources[self.GDn] = {'flux':self.GDflux, 'SpatialFunction':'MapCube'}
+                Sources[self.GDn] = {'ra':266.4049962340225, 'dec':-28.936172403391776, 'glon':0., 'glat':0., 'stype':'PowerLaw', 'Spatial_Function':'SpatialMap', 'extFile':self.GD, 'E':True, 'diffuse':True}
                 extSrcNum += 1
 
         # Add isotropic diffuse model
@@ -658,11 +650,17 @@ class simulation:
             spectrumClass = model.createElement('SpectrumClass')
             spectrumClass.setAttribute('name', "FileSpectrumMap")
 
-            ISOpath = "$(FERMI_DIR)/refdata/fermi/galdiffuse/isotropic_allsky.fits"
+            if self.apply_mask:
+                iso, ext = os.path.splitext(os.path.basename(self.ISOpath))
+                print "Masking Isotropic Diffuse model..."
+                print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2], self.roi[0], self.roi[1])
+                self.ISOpath = maskFits.MaskFits(self.ISOpath, out=os.path.join(self.wd, iso + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER + 6., radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='deg', clobber=True)
+                print "Done."
+
             if self.ISOflux is None:
                 self.ISOflux = 0.0
 
-            spectrumClass.setAttribute('params', "flux={0},fitsFile={1},specFile={2}".format(self.ISOflux*1.e4, ISOpath, self.ISO))
+            spectrumClass.setAttribute('params', "flux={0},fitsFile={1},specFile={2}".format(self.ISOflux*1.e4, self.ISOpath, self.ISO))
 
             use_spectrum = model.createElement('use_spectrum')
             use_spectrum.setAttribute('frame', "galaxy")
@@ -675,10 +673,10 @@ class simulation:
             source.appendChild(comment)
             source.appendChild(spec)
             model.documentElement.appendChild(source)
-            Sources[self.ISOn] = {'flux':self.ISOflux, 'SpatialFunction':'FileSpectrumMap'}
+            Sources[self.ISOn] = {'ra':266.4049962340225, 'dec':-28.936172403391776, 'glon':0., 'glat':0., 'stype':'FileFunction', 'Spatial_Function':'SpatialMap', 'extFile':self.ISOpath, 'E':True, 'diffuse':True}
             extSrcNum += 1
 
-        if not sL.psF:
+        if not self.psF:
             print 'Added {0} point sources and {1} extended sources.'.format(ptSrcNum, extSrcNum)
         else:
             print 'Added {0} point sources, note that any extended sources in ROI were modeled as point sources because psForce option was set to True.'.format(ptSrcNum)
@@ -686,7 +684,7 @@ class simulation:
         if self.reg:
             print "Building DS9 region file..."
             try:
-                regFile = BuildRegion.BuildRegion(self.regFile, Sources, model_type='simulation', frame=self.frame)
+                regFile = BuildRegion.buildRegion(self.regFile, Sources, model_type='simulation', frame=self.frame)
                 print "Region built. File is located at {0}".format(regFile)
             except BuildRegionError as e:
                 print e
@@ -694,4 +692,212 @@ class simulation:
         return model, Sources
 
     def xml(self):
-        print "I can't do this yet"
+        inputXml = minidom.parse(self.srcs)
+        model = minidom.getDOMImplementation().createDocument(None, 'source_library', None)
+        model.documentElement.setAttribute('title', 'source_library')
+        catalog = inputXml.getElementsByTagName('source')
+        Sources = {}
+        ptSrcNum = 0
+        extSrcNum = 0
+
+        for src in catalog:
+            if src.getAttribute('type') == 'PointSource':
+                for param in src.getElementsByTagName('spatialModel')[0].getElementsByTagName('parameter'):
+                    if param.getAttribute('name') == 'RA':
+                        r = float(param.getAttribute('value'))
+                    elif param.getAttribute('name') == 'DEC':
+                        d = float(param.getAttribute('value'))
+                    else:
+                        continue
+            else:
+                try:
+                    r = float(src.getAttribute('RA'))
+                    d = float(src.getAttribute('DEC'))
+                except ValueError:
+                    for param in src.getElementsByTagName('spatialModel')[0].getElementsByTagName('parameter'):
+                        if param.getAttribute('name') == 'RA':
+                            r = float(param.getAttribute('value'))
+                        elif param.getAttribute('name') == 'DEC':
+                            d = float(param.getAttribute('value'))
+                        else:
+                            continue
+
+            c = SkyCoord(ra=r, dec=d, frame='fk5', unit='degree')
+            gl = c.galactic.l.degree
+            gb = c.galactic.b.degree
+
+            dist = Tools.angsep(self.roi[0], self.roi[1], r, d)
+
+            if dist <= self.roi[2] + self.ER:
+                n = src.getAttribute('name')
+                srcname = '_' + n.replace(' ', '').replace('.', 'd').replace('+', 'p').replace('-', 'm')
+
+                E = (True if (src.getAttribute('type') == 'DiffuseSource' and not self.psF) else False)
+                spec = src.getElementsByTagName('spectrum')
+                t = spec[0].getAttribute('type')
+                plf = float(src.getAttribute('PowerLaw_Flux_Density'))
+                lpf = float(src.getAttribute('LogParabola_Flux_Density'))
+                cof = float(src.getAttribute('PLSuperExpCutoff2_Flux_Density'))
+                p = float(src.getAttribute('Pivot_Energy'))
+                pli = float(src.getAttribute('PowerLaw_Index'))
+                lpi = float(src.getAttribute('LogParabola_Index'))
+                lpb = float(src.getAttribute('LogParabola_beta'))
+                pleci = float(src.getAttribute('PLSuperExpCutoff2_Index'))
+                plecef = float(src.getAttribute('PLSuperExpCutoff2_Expfactor'))
+                plecei = float(src.getAttribute('PLSuperExpCutoff2_Index2'))
+
+                efile = ''
+                semimajor = None
+                semiminor = None
+                posang = 0.
+                spatialfunc = ''
+                if E and not self.psF:
+                    spatialModel = src.getElementsByTagName('spatialModel')[0]
+                    spatialfunc = spatialModel.getAttribute('type')
+                    if spatialfunc == 'SpatialMap':
+                        efile = os.path.join(self.extD, os.path.basename(spatialModel.getAttribute('file')))
+                    elif spatialfunc == 'RadialDisk':
+                        for param in spatialModel.getElementsByTagName('parameter'):
+                            if param.getAttribute('name') == 'Radius':
+                                scale = float(param.getAttribute('scale'))
+                                semimajor = float(param.getAttribute('value'))*scale
+                    elif spatialfunc == 'RadialGauss':
+                        for param in spatialModel.getElementsByTagName('parameter'):
+                            if param.getAttribute('name') == 'Sigma':
+                                scale = float(param.getAttribute('scale'))
+                                semimajor = float(param.getAttribute('value'))*scale
+                    else:
+                        print "{0} is not a spatial function that can be modeled.".format(spatialfunc)
+                        print "Skipping source..."
+                        continue
+
+                    try:
+                        source, modeled_extended = SimulationSources.AddExtendedSource(srcname, t, spatialfunc, directory=self.wd, extDir=self.extD, ra=r, dec=d, glon=gl, glat=gb, major_axis=semimajor, minor_axis=semiminor, position_angle=posang, efile=efile, emin=self.emin, emax=self.emax, frame=self.frame, resolution=self.extSrcRes, pivot_energy=p, pl_flux_density=plf, lp_flux_density=lpf, plec_flux_density=cof, pl_index=pli, lp_index=lpi, lp_beta=lpb, plec_index=pleci, plec_expfactor=plecef, plec_exp_index=plecei)
+                        model.documentElement.appendChild(source)
+                        if modeled_extended:
+                            Sources[srcname] = {'ra': r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'Spatial_Function':spatialfunc, 'extFile':efile, 'E':True, 'diffuse':False}
+                            extSrcNum += 1
+                        else:
+                            Sources[srcname] = {'ra': r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'Spatial_Function':spatialfunc, 'extFile':efile, 'E':False, 'diffuse':False}
+                            ptSrcNum += 1
+                    except AddSourceError as e:
+                        print "Error encountered when adding extended source {0}.".format(srcname)
+                        print e
+                        print "Skipping source..."
+                        continue
+                else:
+                    try:
+                        source = SimulationSources.AddPointSource(srcname, t, self.emin, self.emax, self.wd, ra=r, dec=d, glon=gl, glat=gb, frame=self.frame, pivot_energy=p, pl_flux_density=plf, lp_flux_density=lpf, plec_flux_density=cof, pl_index=pli, lp_index=lpi, lp_beta=lpb, plec_index=pleci, plec_expfactor=plecef, plec_exp_index=plecei)
+                        model.documentElement.appendChild(source)
+                        Sources[srcname] = {'ra':r, 'dec':d, 'glon':gl, 'glat':gb, 'stype':t, 'Spatial_Function':'PointSource', 'extFile':'', 'E':E, 'diffuse':False}
+                        ptSrcNum += 1
+                    except AddSourceError as e:
+                        print "Error encountered when adding point source {0}.".format(srcname)
+                        print e
+                        print "Skipping source..."
+                        continue
+
+        # Add galactic diffuse emission
+        if self.GDn is not None:
+            headers_present = False
+            try:
+                headers_present = Tools.checkHeader(self.GD)
+            except HeaderCheckError as e:
+                print e
+
+            if headers_present:
+                if self.GDflux is None: 
+                    if os.path.basename(GD) == 'gll_iem_v06.fits':
+                        self.GDflux = 0.0006728539887251224
+                    elif (os.path.basename(GD) == 'gll_iem_v07.fits') or (os.path.basename(GD) == 'gll_iem_v07_revised.fits'):
+                        self.GDflux = 0.0008463167432920544
+                    else:
+                        self.GDflux = 0.
+
+                if self.apply_mask:
+                    gd, ext = os.path.splitext(os.path.basename(self.GD))
+                    print "Masking Galactic Diffuse model..."
+                    print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2] + self.ER, self.roi[0], self.roi[1])
+                    self.GD, self.GDflux = maskFits.MaskFits(self.GD, out=os.path.join(self.wd, gd + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER, radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='degree', clobber=True)
+                    print "Done."
+                
+                source = model.createElement('source')
+                source.setAttribute('name', self.GDn)
+                spec = model.createElement('spectrum')
+                spec.setAttribute('escale', "MeV")
+
+                spectrumClass = model.createElement('SpectrumClass')
+                spectrumClass.setAttribute('name', "MapCube")
+                spectrumClass.setAttribute('params', "flux={0},fitsFile={1}".format(self.GDflux*1.e4, self.GD))
+
+                use_spectrum = model.createElement('use_spectrum')
+                use_spectrum.setAttribute('frame', "galaxy")
+
+                spec.appendChild(spectrumClass)
+                spec.appendChild(use_spectrum)
+
+                comment = model.createComment("This is v07 of the diffuse emission model. Integrated flux from mapcube is {0} (#/m^2/s)".format(self.GDflux*1.e4))
+                source.appendChild(comment)
+
+                source.appendChild(spec)
+                model.documentElement.appendChild(source)
+                Sources[self.GDn] = {'ra':266.4049962340225, 'dec':-28.936172403391776, 'glon':0., 'glat':0., 'stype':'PowerLaw', 'Spatial_Function':'SpatialMap', 'extFile':self.GD, 'E':True, 'diffuse':True}
+                extSrcNum += 1
+
+        # Add isotropic diffuse model
+        if self.ISOn is not None:
+            source = model.createElement('source')
+            source.setAttribute('name', self.ISOn)
+            spec = model.createElement('spectrum')
+            spec.setAttribute('escale', "MeV")
+            spectrumClass = model.createElement('SpectrumClass')
+            spectrumClass.setAttribute('name', "FileSpectrumMap")
+
+            if self.apply_mask:
+                iso, ext = os.path.splitext(os.path.basename(self.ISOpath))
+                print "Masking Isotropic Diffuse model..."
+                print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2], self.roi[0], self.roi[1])
+                self.ISOpath = maskFits.MaskFits(self.ISOpath, out=os.path.join(self.wd, iso + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER + 6., radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='deg', clobber=True)
+                print "Done."
+
+            if self.ISOflux is None:
+                self.ISOflux = 0.0
+
+            spectrumClass.setAttribute('params', "flux={0},fitsFile={1},specFile={2}".format(self.ISOflux*1.e4, self.ISOpath, self.ISO))
+
+            use_spectrum = model.createElement('use_spectrum')
+            use_spectrum.setAttribute('frame', "galaxy")
+
+            comment = model.createComment("This is the isotropic diffuse spectrum. Integrated flux is {0} (#/m^2/s) [Note units]. When a flux of 0 is given the integral is calculated automatically and used.".format(self.ISOflux*1.e4))
+
+            spec.appendChild(spectrumClass)
+            spec.appendChild(use_spectrum)
+
+            source.appendChild(comment)
+            source.appendChild(spec)
+            model.documentElement.appendChild(source)
+            Sources[self.ISOn] = {'ra':266.4049962340225, 'dec':-28.936172403391776, 'glon':0., 'glat':0., 'stype':'FileFunction', 'Spatial_Function':'SpatialMap', 'extFile':self.ISOpath, 'E':True, 'diffuse':True}
+            extSrcNum += 1
+
+        if not self.psF:
+            print 'Added {0} point sources and {1} extended sources.'.format(ptSrcNum, extSrcNum)
+        else:
+            print 'Added {0} point sources, note that any extended sources in ROI were modeled as point sources because psForce option was set to True.'.format(ptSrcNum)
+
+        if self.reg:
+            print "Building DS9 region file..."
+            try:
+                regFile = BuildRegion.buildRegion(self.regFile, Sources, model_type='simulation', frame=self.frame)
+                print "Region built. File is located at {0}".format(regFile)
+            except BuildRegionError as e:
+                print e
+
+        return model, Sources
+
+def likelihood(**kwargs):
+    likelihood_model = likelihoodModel(**kwargs)
+    return likelihood_model.parseCatalog()
+
+def simulation(**kwargs):
+    simulation_model = simulationModel(**kwargs)
+    return simulation_model.parseCatalog()

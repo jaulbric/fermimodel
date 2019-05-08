@@ -3,6 +3,8 @@ import argparse
 import numpy as np
 import astropy.io.fits as pyfits
 from astropy.wcs import WCS
+from astropy.wcs.utils import wcs_to_celestial_frame
+from astropy.coordinates import SkyCoord
 import warnings
 import os
 import datetime
@@ -20,16 +22,23 @@ class NaxisError(Exception):
     """Raise if the energy axis of the image cannot be found."""
     pass
 
-def angsep(xref,yref,center=(0.,0.)):
+def angsep(xref, yref, center=(0.,0.)):
     """Calculates angular separation between two points on the sky. Parameters and returns are in degrees."""
     xref = xref*d2r
     yref = yref*d2r
     center = (center[0]*d2r, center[1]*d2r)
     return np.arccos((np.cos(yref)*np.cos(center[1])*np.cos(xref - center[0])) + (np.sin(yref)*np.sin(center[1])))/d2r
 
-def genRadialMask(xcoords, ycoords, radius, radius2, angle, center):
+def pixsep(xref, yref, center=(0., 0.)):
+    """Calculates pixel separation between two points in the image. Parameters and returns are in pixels."""
+    return np.sqrt((xref - center[0])**2 + (yref - center[1])**2)
+
+def genRadialMask(xcoords, ycoords, radius, radius2, angle, center, frame):
     """Generate a radial mask"""
-    dist = angsep(xcoords, ycoords, center)
+    if frame != 'pixel':
+        dist = angsep(xcoords, ycoords, center)
+    else:
+        dist = pixsep(xcoords, ycoords, center)
     
     if radius2 is None:
         radius2 = radius
@@ -48,8 +57,19 @@ def integrateMapCube(data, xcoords, ycoords, energies):
     flux = trapz(dflux, energies)
     return flux
 
-def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, radius=180., radius2=None, angle=0., center=(0., 0.), extent=[180., -180., 90., -90.], clobber=False):
+def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, radius=180., radius2=None, angle=0., center=(0., 0.), extent=[180., -180., 90., -90.], frame='galactic', unit='degree', clobber=False):
     """Mask the fits image"""
+    if frame == 'galactic':
+        frame_str = '(GLAT, GLON)'
+    elif frame == 'icrs':
+        frame_str = '(RA, DEC)'
+    elif frame == 'fk5':
+        frame_str = '(RAJ2000, DECJ2000)'
+    elif frame == 'pixel':
+        frame_str = '(PIX1, PIX2)'
+    else:
+        raise IOError("Invalid frame {0}".format(frame))
+    
     fitsfile = os.path.expandvars(fitsfile).replace("$(FERMI_DIR)", os.environ.get("FERMI_DIR")) if os.environ.get("FERMI_DIR") is not None else os.path.expandvars(fitsfile)
     hdu_list = pyfits.open(fitsfile)
     
@@ -71,25 +91,43 @@ def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, rad
 
     xgrid, ygrid = np.meshgrid(np.arange(naxis1), np.arange(naxis2))
 
-    flat_xcoords, flat_ycoords = wcs.wcs_pix2world(xgrid.flatten(), ygrid.flatten(), 0)
-    
+    if frame != 'pixel':
+        flat_xcoords, flat_ycoords = wcs.wcs_pix2world(xgrid.flatten(), ygrid.flatten(), 0)
+        xcoords = flat_xcoords.reshape(naxis2, naxis1)
+        ycoords = flat_ycoords.reshape(naxis2, naxis1)
+    else:
+        xcoords = xgrid
+        xcoords = ygrid
+
     del xgrid
     del ygrid
-    
-    xcoords = flat_xcoords.reshape(naxis2, naxis1)
-    ycoords = flat_ycoords.reshape(naxis2, naxis1)
 
     if mask_type == 'radial':
-        mask = genRadialMask(xcoords, ycoords, radius, radius2, angle, center)
-        hdu_list[img_hdu].header['history'] = '{0} Applied radial mask to data.'.format(datetime.datetime.today().strftime('%d %B %Y'))
-        hdu_list[img_hdu].header['history'] = 'radius={0}, radius2={1}, angle={2}, center={3}'.format(radius, radius2, angle, center)
-    elif mask_type == 'square':
-        if 'GLON' in wcs.wcs.ctype[0]:
-            mask = genSquareMask(np.where(xcoords < 180., xcoords, xcoords - 360.), ycoords, extent)
+        if frame != 'pixel':
+            c = SkyCoord(center[0], center[1], frame=frame, unit=unit)
+            c_new = c.transform_to(wcs_to_celestial_frame(wcs))
+            center_new = map(float, c_new.to_string().split(' '))
         else:
-            mask = genSquarMask(xcoords, ycoords, extent)
+            center_new = center
+
+        mask = genRadialMask(xcoords, ycoords, radius, radius2, angle, center_new, frame=frame)
+        hdu_list[img_hdu].header['history'] = '{0} Applied radial mask to data.'.format(datetime.datetime.today().strftime('%d %B %Y'))
+        hdu_list[img_hdu].header['history'] = 'radius={0}, radius2={1}, angle={2}, center={3} {4}'.format(radius, radius2, angle, center, frame_str)
+    elif mask_type == 'square':
+        if frame != 'pixel':
+            c = SkyCoord([extent[0], extent[2]], [extent[1], extent[3]], frame=frame, unit=unit)
+            c_new = c.transform_to(wcs_to_celestial_frame(wcs))
+            l, t = map(float, c_new[0].to_string().split(' '))
+            r, b = map(float, c_new[1].to_string().split(' '))
+            extent_new = [l, r, b, t]
+        else:
+            extent_new = extent
+        if 'GLON' in wcs.wcs.ctype[0]:
+            mask = genSquareMask(np.where(xcoords < 180., xcoords, xcoords - 360.), ycoords, extent_new)
+        else:
+            mask = genSquarMask(xcoords, ycoords, extent_new)
         hdu_list[img_hdu].header['history'] = '{0} Applied square mask to data.'.format(datetime.datetime.today().strftime('%d %B %Y'))
-        hdu_list[img_hdu].header['history'] = '[left, right, top, bottom]={0}'.format(extent)
+        hdu_list[img_hdu].header['history'] = '[left, right, top, bottom]={0} {1}'.format(extent, frame_str)
     else:
         raise MaskTypeError("{0} is not a supported mask geometry.".format(mask_type))
 
@@ -110,7 +148,12 @@ def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, rad
         if naxis_E is None:
             raise NaxisError("Could not find the energy axis of the image.") 
         
-        hdu_list[img_hdu].data = hdu_list[img_hdu].data*np.tile(mask, tuple(tile_shape))
+        try:
+            # hdu_list[img_hdu].data = hdu_list[img_hdu].data*np.tile(mask, tuple(tile_shape))
+            hdu_list[img_hdu].data *= np.tile(mask, tuple(tile_shape))
+        except MemoryError:
+            for idx in range(naxis_E):
+                hdu_list[img_hdu].data[idx,:,:] *= mask
         del mask
 
         # Have to memmap data arrays because of intermediate arrays created by trapz
@@ -141,13 +184,18 @@ def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, rad
         del m_energies
 
     else:
-        hdu_list[img_hdu].data = hdu_list[img_hdu].data*mask
+        hdu_list[img_hdu].data *= mask
         del mask
 
     if not os.path.isabs(out):
         out = os.path.join(os.getcwd(), out)
 
-    hdu_list[img_hdu].data = np.where(hdu_list[img_hdu].data > 0, hdu_list[img_hdu].data, cfloat_min*np.ones(hdu_list[img_hdu].data.shape))
+    try:
+        # hdu_list[img_hdu].data = np.where(hdu_list[img_hdu].data > 0, hdu_list[img_hdu].data, cfloat_min*np.ones(hdu_list[img_hdu].data.shape))
+        hdu_list[img_hdu].data[hdu_list[img_hdu].data < cfloat_min] = cfloat_min
+    except MemoryError:
+        for idx in range(naxis_E):
+            hdu_list[img_hdu].data[idx,:,:][hdu_list[img_hdu].data[idx,:,:] < cfloat_min] = cfloat_min
 
     try:
         hdu_list.writeto(out)
@@ -194,6 +242,13 @@ def cli():
     parser.add_argument('-ih', '--image_hdu', help='HDU containing the image to be masked. If none is input it is assumed to live in the PRIMARY HDU.')
     parser.add_argument('-cl', '--clobber', action='store_true', help='Flag to overwrite a file of the same name. Default is false.')
 
+    frame_group = parser.add_mutually_exclusive_group()
+    frame_group.add_argument('-fk5', '--J2000', action='store_const', const='fk5', help='Flag sets coordinates of mask center to RAJ2000, DECJ2000')
+    frame_group.add_argument('-icrs', '--celestial', action='store_const', const='icrs', help='Flag sets coordinates of mask center to RA, DEC')
+    frame_group.add_argument('-gal', '--galactic', action='store_const', const='galactic', help='Flag sets coordinates of mask center to GLON, GLAT')
+    frame_group.add_argument('-pix', '--pixel', action='store_const', const='pixel', help='Flag sets coordinates of mask center to PIXEL1, PIXEL2')
+    parser.add_argument('-u', '--unit', type=str, default='degree', help='Units of mask coordinates. Default is degrees.')
+
     radial = parser.add_argument_group('radial', 'Parameters for radial mask')
     square = parser.add_argument_group('square', 'Parameters for square mask')
 
@@ -203,10 +258,6 @@ def cli():
     radial.add_argument('-xc', '--horizontal-center', type=float, help='Horizontal coordinate of mask center.')
     radial.add_argument('-yc', '--vertical-center', type=float, help='Vertical coordinate of mask center.')
 
-    radial_frame_group = radial.add_mutually_exclusive_group()
-    radial_frame_group.add_argument('-icrs', '--celestial', action='store_const', const='icrs', help='Flag sets coordinates of mask center to RAJ2000, DECJ2000')
-    radial_frame_group.add_argument('-gal', '--galactic', action='store_const', const='galactic', help='Flag sets coordinates of mask center to GLON, GLAT')
-
     square.add_argument('-xmin', '--horizontal-min', type=float, help='Minimum horizontal coordinate value.')
     square.add_argument('-xmax', '--horizontal-max', type=float, help='Maximum horizontal coorindate value.')
     square.add_argument('-ymin', '--vertical-min', type=float, help='Minimum vertical coordinate value.')
@@ -214,7 +265,19 @@ def cli():
 
     args = parser.parse_args()
 
-    out = MaskFits(args.input, out=args.output, img_hdu=args.image_hdu, mask_type=args.mask, radius=args.radius, radius2=args.radius2, angle=args.angle, center=args.center, extent=args.extent, clobber=args.clobber)
+    if args.J2000 is not None:
+        frame = args.J2000
+    elif args.celestial is not None:
+        frame = args.celestial
+    elif args.galactic is not None:
+        frame = args.celestial
+    elif args.pixel is not None:
+        frame = args.pixel
+    else:
+        print "cannot mask image with frame type {0}".format(args.frame)
+        exit()
+
+    out = MaskFits(args.input, out=args.output, img_hdu=args.image_hdu, mask_type=args.mask, radius=args.radius, radius2=args.radius2, angle=args.angle, center=args.center, extent=args.extent, frame=frame, unit=args.unit, clobber=args.clobber)
 
     if isinstance(out, tuple):
         print "Output file saved at {0}".format(out[0])
