@@ -162,6 +162,8 @@ class model:
         if makeRegion:
             rhold = os.path.splitext(os.path.basename(self.name))[0]
             self.regFile = os.path.join(self.wd, 'ROI_' + rhold + '.reg')
+        else:
+            self.regFile = None
         print 'Creating file and adding sources from Catalog {0}'.format(catalog)
 
         if self.model_type == 'simulation':

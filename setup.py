@@ -13,5 +13,5 @@ setup(
 		'astropy',
 		'scipy',
 	],
-	scripts = ['bin/make4FGLxml']
+	scripts = ['bin/ModelBuilder']
 	)

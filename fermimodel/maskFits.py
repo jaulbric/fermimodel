@@ -11,9 +11,6 @@ import datetime
 from scipy.integrate import trapz
 from tempfile import mkdtemp
 
-d2r = np.pi/180.
-cfloat_min = 1.e-37
-
 class MaskTypeError(Exception):
     """Raise if the type of mask requested is not allowed"""
     pass
@@ -57,7 +54,7 @@ def integrateMapCube(data, xcoords, ycoords, energies):
     flux = trapz(dflux, energies)
     return flux
 
-def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, radius=180., radius2=None, angle=0., center=(0., 0.), extent=[180., -180., 90., -90.], frame='galactic', unit='degree', clobber=False):
+def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, radius=180., radius2=None, angle=0., center=(0., 0.), extent=[180., -180., 90., -90.], frame='galactic', unit='degree', clobber=False, float_min=1.17549e-38):
     """Mask the fits image"""
     if frame == 'galactic':
         frame_str = '(GLAT, GLON)'
@@ -191,11 +188,10 @@ def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, rad
         out = os.path.join(os.getcwd(), out)
 
     try:
-        # hdu_list[img_hdu].data = np.where(hdu_list[img_hdu].data > 0, hdu_list[img_hdu].data, cfloat_min*np.ones(hdu_list[img_hdu].data.shape))
-        hdu_list[img_hdu].data[hdu_list[img_hdu].data < cfloat_min] = cfloat_min
+        hdu_list[img_hdu].data[hdu_list[img_hdu].data < float_min] = float_min
     except MemoryError:
         for idx in range(naxis_E):
-            hdu_list[img_hdu].data[idx,:,:][hdu_list[img_hdu].data[idx,:,:] < cfloat_min] = cfloat_min
+            hdu_list[img_hdu].data[idx,:,:][hdu_list[img_hdu].data[idx,:,:] < float_min] = float_min
 
     try:
         hdu_list.writeto(out)
