@@ -352,15 +352,15 @@ class likelihoodModel:
                               eR = EXTRA
                               eD = EXTDEC
                     if efunc == 'SpatialMap':
-                        if efile == None:
+                        if efile is None:
                             print 'could not find a match for {0} in the list:'.format(En)
                             print extName
                             efile = ''
-                            spatialModel.setAttribute('file', efile)
-                            spatialModel.setAttribute('map_based_integral', "true")
-                            spatialModel.setAttribute('type', "SpatialMap")
-                            print 'Extended source {0} in ROI, make sure {1} is the correct path to the extended template.'.format(En, efile)
+                        spatialModel.setAttribute('file', efile)
+                        spatialModel.setAttribute('map_based_integral', "true")
+                        spatialModel.setAttribute('type', "SpatialMap")
                         spatialModel.appendChild(Tools.parameter_element("0", "Prefactor", "1000.0", "0.001", "1.0", "1.0"))
+                        print 'Extended source {0} in ROI, make sure {1} is the correct path to the extended template.'.format(En, efile)
                     else:
                         spatialModel.setAttribute('type', efunc)
                         spatialModel.appendChild(Tools.parameter_element("0", "RA", "360.0", "-360.0", "1.0", "{0}".format(eR)))
