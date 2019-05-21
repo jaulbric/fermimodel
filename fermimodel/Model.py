@@ -41,7 +41,7 @@ class model:
         else:
             self.out = out
         
-        if roi is not None:
+        if (roi is not None) or allsky:
             self.setROI(roi=roi, frame=frame, unit=unit, allsky=allsky)
         elif eventsfile is not None:
             self.roi = Tools.getPos(eventsfile)
