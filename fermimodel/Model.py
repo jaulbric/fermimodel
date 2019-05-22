@@ -182,7 +182,7 @@ class model:
         Parameters
         ----------
         directory : str, optional
-            Path to directory in which the XML file will be saved. Defaults is the work directory of srcList
+            Path to directory in which the XML file will be saved. Defaults is the work directory of the model class
         out : str, optional
             Name of the XML file. Default is output name of srcList
 
