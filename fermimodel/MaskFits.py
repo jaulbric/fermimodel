@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import argparse
 import numpy as np
 import astropy.io.fits as pyfits
 from astropy.wcs import WCS
@@ -54,7 +53,7 @@ def integrateMapCube(data, xcoords, ycoords, energies):
     flux = trapz(dflux, energies)
     return flux
 
-def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, radius=180., radius2=None, angle=0., center=(0., 0.), extent=[180., -180., 90., -90.], frame='galactic', unit='degree', clobber=False, float_min=1.17549e-38):
+def maskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, radius=180., radius2=None, angle=0., center=(0., 0.), extent=[180., -180., 90., -90.], frame='galactic', unit='degree', clobber=False, float_min=1.17549e-38):
     """Mask the fits image"""
     if frame == 'galactic':
         frame_str = '(GLAT, GLON)'
@@ -220,76 +219,3 @@ def MaskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, rad
         return out, flux
     else:
         return out
-
-    # Debug
-    # import matplotlib.pyplot as plt
-    # fig = plt.figure()
-    # plt.imshow(mask, origin='lower')
-    # plt.show()
-
-def cli():
-    """Command line interface"""
-    helpString = "Mask fits image."
-    parser = argparse.ArgumentParser(description=helpString)
-    parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.1')
-    parser.add_argument('input', type=str, help="Fits file containing the image to which the program will apply a mask")
-    parser.add_argument('-o', '--output', type=str, default='masked.fits', help="Optional filename to save the masked data. Default is masked.fits")
-    parser.add_argument('-m', '--mask', type=str, choices=['radial', 'square'], default='radial', help='Shape of the mask.')
-    parser.add_argument('-ih', '--image_hdu', help='HDU containing the image to be masked. If none is input it is assumed to live in the PRIMARY HDU.')
-    parser.add_argument('-cl', '--clobber', action='store_true', help='Flag to overwrite a file of the same name. Default is false.')
-
-    frame_group = parser.add_mutually_exclusive_group()
-    frame_group.add_argument('-fk5', '--J2000', action='store_const', const='fk5', help='Flag sets coordinates of mask center to RAJ2000, DECJ2000')
-    frame_group.add_argument('-icrs', '--celestial', action='store_const', const='icrs', help='Flag sets coordinates of mask center to RA, DEC')
-    frame_group.add_argument('-gal', '--galactic', action='store_const', const='galactic', help='Flag sets coordinates of mask center to GLON, GLAT')
-    frame_group.add_argument('-pix', '--pixel', action='store_const', const='pixel', help='Flag sets coordinates of mask center to PIXEL1, PIXEL2')
-    parser.add_argument('-u', '--unit', type=str, default='degree', help='Units of mask coordinates. Default is degrees.')
-
-    radial = parser.add_argument_group('radial', 'Parameters for radial mask')
-    square = parser.add_argument_group('square', 'Parameters for square mask')
-
-    radial.add_argument('-r', '--radius', type=float, default=180., help='Radius of the mask.')
-    radial.add_argument('-r2', '--radius2', type=float, help='Second radius of ellipse. Not yet implemented')
-    radial.add_argument('-a', '--angle', type=float, help='Angle of radius with respect to the horizontal axis. not yet implemented.')
-    radial.add_argument('-xc', '--horizontal-center', type=float, help='Horizontal coordinate of mask center.')
-    radial.add_argument('-yc', '--vertical-center', type=float, help='Vertical coordinate of mask center.')
-
-    square.add_argument('-xmin', '--horizontal-min', type=float, help='Minimum horizontal coordinate value.')
-    square.add_argument('-xmax', '--horizontal-max', type=float, help='Maximum horizontal coorindate value.')
-    square.add_argument('-ymin', '--vertical-min', type=float, help='Minimum vertical coordinate value.')
-    square.add_argument('-ymax', '--vertical-max', type=float, help='Maximum vertical coordinate value.')
-
-    args = parser.parse_args()
-
-    if args.J2000 is not None:
-        frame = args.J2000
-    elif args.celestial is not None:
-        frame = args.celestial
-    elif args.galactic is not None:
-        frame = args.celestial
-    elif args.pixel is not None:
-        frame = args.pixel
-    else:
-        print "cannot mask image with frame type {0}".format(args.frame)
-        exit()
-
-    out = MaskFits(args.input, out=args.output, img_hdu=args.image_hdu, mask_type=args.mask, radius=args.radius, radius2=args.radius2, angle=args.angle, center=args.center, extent=args.extent, frame=frame, unit=args.unit, clobber=args.clobber)
-
-    if isinstance(out, tuple):
-        print "Output file saved at {0}".format(out[0])
-        print "Calculated flux is {0} photons/cm^2/s".format(out[1])
-    else:
-        print "Output file saved at {0}".format(out)
-
-    # # Debug
-    # import matplotlib.pyplot as plt
-    # out, flux = MaskFits(args.input, out=args.output, img_hdu=args.image_hdu, mask_type=args.mask, radius=args.radius, radius2=args.radius2, angle=args.angle, center=(args.horizontal_center, args.vertical_center), extent=[args.horizontal_min, args.horizontal_max, args.vertical_min, args.vertical_max], clobber=args.clobber)
-    # print flux
-    # gd = pyfits.open(out)
-    # wcs = WCS(gd[0].header, naxis=2)
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection=wcs)
-    # plt.imshow(gd[0].data[0])
-    # plt.show()
-
-if __name__ == '__main__': cli()

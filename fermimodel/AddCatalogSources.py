@@ -9,7 +9,7 @@ import Tools
 import BuildRegion
 import LikelihoodSpectra
 import SimulationSources
-import maskFits
+import MaskFits
 
 from Exceptions import AddSourceError
 from Exceptions import BuildRegionError
@@ -615,7 +615,7 @@ class simulationModel:
                     gd, ext = os.path.splitext(os.path.basename(self.GD))
                     print "Masking Galactic Diffuse model..."
                     print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2] + self.ER, self.roi[0], self.roi[1])
-                    self.GD, self.GDflux = maskFits.MaskFits(self.GD, out=os.path.join(self.wd, gd + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER, radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='degree', clobber=True)
+                    self.GD, self.GDflux = MaskFits.maskFits(self.GD, out=os.path.join(self.wd, gd + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER, radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='degree', clobber=True)
                     print "Done."
                 
                 source = model.createElement('source')
@@ -654,7 +654,7 @@ class simulationModel:
                 iso, ext = os.path.splitext(os.path.basename(self.ISOpath))
                 print "Masking Isotropic Diffuse model..."
                 print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2], self.roi[0], self.roi[1])
-                self.ISOpath = maskFits.MaskFits(self.ISOpath, out=os.path.join(self.wd, iso + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER + 6., radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='deg', clobber=True)
+                self.ISOpath = MaskFits.maskFits(self.ISOpath, out=os.path.join(self.wd, iso + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER + 6., radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='deg', clobber=True)
                 print "Done."
 
             if self.ISOflux is None:
@@ -818,7 +818,7 @@ class simulationModel:
                     gd, ext = os.path.splitext(os.path.basename(self.GD))
                     print "Masking Galactic Diffuse model..."
                     print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2] + self.ER, self.roi[0], self.roi[1])
-                    self.GD, self.GDflux = maskFits.MaskFits(self.GD, out=os.path.join(self.wd, gd + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER, radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='degree', clobber=True)
+                    self.GD, self.GDflux = MaskFits.maskFits(self.GD, out=os.path.join(self.wd, gd + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER, radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='degree', clobber=True)
                     print "Done."
                 
                 source = model.createElement('source')
@@ -857,7 +857,7 @@ class simulationModel:
                 iso, ext = os.path.splitext(os.path.basename(self.ISOpath))
                 print "Masking Isotropic Diffuse model..."
                 print "Applying mask of {0} degrees around ({1}, {2})".format(self.roi[2], self.roi[0], self.roi[1])
-                self.ISOpath = maskFits.MaskFits(self.ISOpath, out=os.path.join(self.wd, iso + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER + 6., radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='deg', clobber=True)
+                self.ISOpath = MaskFits.maskFits(self.ISOpath, out=os.path.join(self.wd, iso + "_masked" + ext), mask_type='radial', radius=self.roi[2] + self.ER + 6., radius2=None, angle=0., center=(self.roi[0], self.roi[1]), frame='fk5', unit='deg', clobber=True)
                 print "Done."
 
             if self.ISOflux is None:

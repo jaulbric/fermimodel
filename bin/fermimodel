@@ -1,0 +1,216 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import fermimodel
+
+version = "v1.0"
+
+def roi_type(roi):
+    """Custom argument type to handle negative numbers"""
+    values = roi.replace('(', '').replace(')', '').split(',')
+    if len(values) != 3:
+        raise argparse.ArgumentError
+    values = map(float, values)
+    return values
+
+def model(args):
+    """Format arguments for model and execute"""
+    args.varFree=False#remove this later
+
+    print "This is fermimodel version {0}".format(version)
+    print "The default diffuse model files and names are for pass 8 and 4FGL and assume you have v11r5p3 of the Fermi Science Tools or higher."
+
+    if args.model_type == 'simulation':
+        args.oldNames = True
+
+    if args.celestial is not None:
+        frame = args.celestial
+    elif args.galactic is not None:
+        frame = args.galactic
+    elif args.J2000 is not None:
+        frame = args.J2000
+    else:
+        frame = 'fk5'
+
+    if args.Region is not None:
+        Region = args.Region
+    elif args.allsky:
+        Region = None
+    else:
+        Region = (args.horizontal_center, args.vertical_center, args.radLim)
+    
+    model = fermimodel.model(name='mymodel',
+                            eventsfile=args.ev,
+                            catalog=args.catalog,
+                            out=args.outputxml,
+                            roi=Region,
+                            frame=frame,
+                            unit=args.unit,
+                            allsky=args.allsky,
+                            model_type=args.model_type)
+    model.loadCatalog(GDfile=args.galfile,
+                      GDname=args.galname,
+                      ISOfile=args.isofile,
+                      ISOname=args.isoname,
+                      ISOpath=args.isopath,
+                      normsOnly=args.normsonly,
+                      extDir=args.extDir,
+                      radLim=args.radLim,
+                      maxRad=args.maxRad,
+                      ExtraRad=args.ExtraRad,
+                      sigFree=args.sigFree,
+                      varFree=args.varFree,
+                      psForce=args.psForce,
+                      E2CAT=args.E2CAT,
+                      makeRegion=args.makeRegion,
+                      GIndexFree=args.GIndexFree,
+                      wd=args.writeDir,
+                      oldNames=args.oldNames,
+                      emin=args.emin,
+                      emax=args.emax,
+                      frame=frame,
+                      extSrcRes=args.extSrcRes,
+                      apply_mask=args.apply_mask,
+                      GDflux=args.galflux,
+                      ISOflux=args.isoflux)
+
+    xmlpath = model.writeXML()
+    print "Model XML has been written to {}".format(xmlpath)
+
+    if args.model_type == 'simulation':
+        srcpath = model.writeSrcList()
+        print "Model source list has been written to {0}".format(srcpath)
+
+def maskFits(args):
+    """Format arguments for maskFits and execute"""
+    if args.J2000 is not None:
+        frame = args.J2000
+    elif args.celestial is not None:
+        frame = args.celestial
+    elif args.galactic is not None:
+        frame = args.celestial
+    elif args.pixel is not None:
+        frame = args.pixel
+    else:
+        print "cannot mask image with frame type {0}".format(args.frame)
+        exit()
+
+    if args.roi is not None:
+        center = (args.roi[0], args.roi[1])
+        radius = args.roi[2]
+    else:
+        center = (args.horizontal_center, args.vertical_center)
+        radius = args.radius
+
+    out = fermimodel.maskFits(args.input, out=args.output, img_hdu=args.image_hdu, mask_type=args.mask, radius=radius, radius2=args.radius2, angle=args.angle, center=center, extent=args.extent, frame=frame, unit=args.unit, clobber=args.clobber)
+
+    if isinstance(out, tuple):
+        print "Output file saved at {0}".format(out[0])
+        print "Calculated flux is {0} photons/cm^2/s".format(out[1])
+    else:
+        print "Output file saved at {0}".format(out)
+
+def cli():
+    main_helpString = "Command line interface to the fermimodel tools."
+    model_helpString = "Creates an xml model from the 4FGL catalog (FITS or xml version) for a specific ROI.\
+            Coordinates of the ROI center are taken from an input event file or defined on the command line.\
+            For likelihood models sources with free parameters within the original extraction radius are chosen based on nearness to center, significance, and variability.\
+            For simulation models all sources within radLim + ExtraRad are included in the model.\
+            Optionally, a file can be input on the command line by using the '@' prefix. Parameters inside this file should be one per line and are read in order."
+    maskfits_helpString = "Mask fits image. The data HDU of the FITS file should be a 2D image or a 3D cube with the 3rd axis being energy (0 axis numpy indexing)."
+
+    parser = argparse.ArgumentParser(description=main_helpString, fromfile_prefix_chars='@')
+    parser.add_argument("-v", "--version", action="version", version="%(prog)s {0}".format(version))
+
+    subparsers = parser.add_subparsers()
+    model_parser = subparsers.add_parser("buildmodel", help=model_helpString)
+    maskfits_parser = subparsers.add_parser("maskfits", help=maskfits_helpString)
+
+    ## Model Parser ##
+    model_likelihood_group = model_parser.add_argument_group("Likelihood", "These parameters only affect models intended for use in likelihood analysis.")
+    model_simulation_group = model_parser.add_argument_group("Simulation", "These parameters only affect models intended for use with gtobssim.")
+
+    model_frame_group = model_parser.add_mutually_exclusive_group()
+
+    model_parser.add_argument("catalog", type=str, help="Catalog file to use, can be FITS or xml.")
+    model_parser.add_argument("ev", type=str, nargs="?", help="Event file with ROI information in header.")
+    model_parser.add_argument("-n", "--name", type=str, default="mymodel", help="Name of the model. This will be used for output filenames if no other name is specified. Default is 'mymodel'.")
+    model_parser.add_argument("-t", "--model-type", type=str, choices=['likelihood', 'simulation'], default='likelihood', help="Type of model to generate. For likelihood analysis this should be 'likelihood'. If the model is intended for use with gtobssim this should be 'simulation'.")
+    model_parser.add_argument("-o", "--outputxml", type=str, default='mymodel.xml', help="Name of output xml file, is set to overwrite files of same name.")
+    model_parser.add_argument("-G", "--galfile", type=str, default='$(FERMI_DIR)/refdata/fermi/galdiffuse/gll_iem_v07.fits', help="Path to Galactic diffuse model. Default is $(FERMI_DIR)/refdata/fermi/galdiffuse/gll_iem_v07.fits.")
+    model_parser.add_argument("-g", "--galname", type=str, default='gll_iem_v07', help="Name of Galactic diffuse component in output model. Default is gll_iem_v07.")
+    model_parser.add_argument("-I", "--isofile", type=str, default='$(FERMI_DIR)/refdata/fermi/galdiffuse/iso_P8R3_SOURCE_V2_v1.txt', help="Path to isotropic diffuse template for output model, will default to P8R3 SOURCE class model.")
+    model_parser.add_argument("-i", "--isoname",type=str, default='iso_P8R3_SOURCE_V2_v1', help="Name of isotropic diffuse component in output model, default is for P8R3 SOURCE class.")
+    model_parser.add_argument("-e", "--extDir", type=str, default='', help="Path to directory with LAT extended source templates, will default to STs default.")#need to figure out what that is
+    model_parser.add_argument("-roi", "--Region", type=roi_type, metavar="(C1, C2, RADIUS)", help="Region of Interest. This will override values taken from event file if one is supplied.")
+    model_parser.add_argument('-xc', '--horizontal-center', type=float, help='Horizontal coordinate of ROI center.')
+    model_parser.add_argument('-yc', '--vertical-center', type=float, help='Vertical coordinate of ROI center.')
+    
+    model_frame_group.add_argument("-icrs", "--celestial", action="store_const", const="icrs", help="Flag sets coordinates of roi to RA, DEC.")
+    model_frame_group.add_argument("-gal", "--galactic", action="store_const", const="galactic", help="Flag sets coordinates of roi to GLON, GLAT.")
+    model_frame_group.add_argument("-fk5", "--J2000", action="store_const", const="fk5", help="Flag sets coordinates of roi to RAJ2000, DECJ2000.")
+
+    model_parser.add_argument("-u", "--unit", type=str, default='deg', help="Units for coordinates of roi using astropy units convention. Default is 'degree'.")
+    model_parser.add_argument("-r", "--radLim", type=float, default=-1., help="Radius, in degrees, from ROI center beyond which all source parameters should be fixed, will default to selection radius. If --obssim flag is set this is used as the radius of the ROI.")
+    model_parser.add_argument("-ER", "--ExtraRad", type=float, default=10., help="Radius beyond event file ROI out to which sources will be included in the model with all parameters fixed, default is 10, good for analyses starting around a few hundred MeV, can be decreased for high energy only fits. If --obssim flag is set ExtraRad is added to radLim when including sources.")
+    model_parser.add_argument("-p","--psForce", action="store_true", help="Flag to cast extended sources as point sources. Default is False.")
+    model_parser.add_argument("-E2C", "--E2CAT", action="store_true", help="Flag to use catalog names for extended sources. Default is False.")
+    model_parser.add_argument("-m", "--makeRegion", action="store_true", help="Flag to create ds9 region file as well as the xml model. Default is False.")
+    model_parser.add_argument("-wd", "--writeDir", type=str, default=os.getcwd(), help="Directory in which to write output files. Default is the current directory.")
+    model_parser.add_argument("-ON", "--oldNames", action="store_true", help="Flag to use the make2FGLxml style naming convention, underscore before name and no spaces. Default is False")
+    model_parser.add_argument("-AS", "--allsky", action="store_true", help="Generate model with all sources from the catalog. Overides region of interest parameters.")
+
+    # likelihood parameters
+    model_likelihood_group.add_argument("-N", "--normsonly", action="store_true", help="Flag to only let the normalizations of parameters be free, default is False.")
+    model_likelihood_group.add_argument("-R", "--maxRad", type=float, default=None, help="Absolute maximum radius, in degrees, from ROI center beyond which all source parameters should be fixed, even variable sources will not be freed beyond this radius, defaults to radLim value.")
+    model_likelihood_group.add_argument("-s", "--sigFree", type=float, default=5., help="Average significance below which all source parameters are fixed, defaults to 5.  Note, if using the 3FGL catalog xml file as input, this is actually a cut on TS, so adjust accordingly.")
+    model_likelihood_group.add_argument("-GIF", "--GIndexFree", action="store_true", help="Flag to use a power-law modification to the Galactic diffuse model, spectrum and have the index be free. Default is False")
+
+    # simulation parameters
+    model_simulation_group.add_argument("--emin", type=float, default=1.e2, help="Minimum energy for integrated flux.")
+    model_simulation_group.add_argument("--emax", type=float, default=5.e5, help="Maximum energy for integrated flux.")
+    model_simulation_group.add_argument("--isopath", type=str, default="$(FERMI_DIR)/refdata/fermi/galdiffuse/isotropic_allsky.fits", help="Path to isotropic spatial file (a FITS image containing pixels all set to 1.). Default is $(FERMI_DIR)/refdata/fermi/galdiffuse/isotropic_allsky.fits")
+    model_simulation_group.add_argument("--extSrcRes", type=str, choices=["force-point", "skip", "raise"], default="force-point", help="Resolution method for adding an extended source when no extended template is found.")
+    model_simulation_group.add_argument("-am", "--apply-mask", action="store_true", help="Apply a region of interest mask to the diffuse models.")
+    model_simulation_group.add_argument("-gf", "--galflux", type=float, default=0.00084631675, help="Integrated flux (photons/cm^2/s) to use for galactic diffuse emmision model. Default is 0.00084631675.")
+    model_simulation_group.add_argument("-if", "--isoflux", type=float, default=0., help="Integrated flux (photons/cm^2/s) to use for isotropic diffuse emission. Default is 0. (If 0. gtobssim will integrate the spectrum)")
+    ## End Model Parser ##
+
+    ## MaskFits Parser ##
+    maskfits_parser.add_argument('input', type=str, help="Fits file containing the image to which a mask will be applied.")
+    maskfits_parser.add_argument('-o', '--output', type=str, default='masked.fits', help="Optional filename to save the masked data. Default is masked.fits")
+    maskfits_parser.add_argument('-m', '--mask', type=str, choices=['radial', 'square'], default='radial', help='Shape of the mask.')
+    maskfits_parser.add_argument('-ih', '--image_hdu', help='HDU containing the image to be masked. If none is input it is assumed to live in the PRIMARY HDU.')
+    maskfits_parser.add_argument('-cl', '--clobber', action='store_true', help='Flag to overwrite a file of the same name. Default is false.')
+
+    maskfits_frame_group = maskfits_parser.add_mutually_exclusive_group()
+    maskfits_frame_group.add_argument('-fk5', '--J2000', action='store_const', const='fk5', help='Flag sets coordinates of mask center to RAJ2000, DECJ2000')
+    maskfits_frame_group.add_argument('-icrs', '--celestial', action='store_const', const='icrs', help='Flag sets coordinates of mask center to RA, DEC')
+    maskfits_frame_group.add_argument('-gal', '--galactic', action='store_const', const='galactic', help='Flag sets coordinates of mask center to GLON, GLAT')
+    maskfits_frame_group.add_argument('-pix', '--pixel', action='store_const', const='pixel', help='Flag sets coordinates of mask center to PIXEL1, PIXEL2')
+    maskfits_parser.add_argument('-u', '--unit', type=str, default='degree', help='Units of mask coordinates. Default is degrees.')
+
+    maskfits_radial = maskfits_parser.add_argument_group('radial', 'Parameters for radial mask')
+    maskfits_square = maskfits_parser.add_argument_group('square', 'Parameters for square mask')
+
+    maskfits_radial.add_argument("-roi", "--Region", type=roi_type, metavar="(C1, C2, RADIUS)", help="Region of Interest")
+    maskfits_radial.add_argument('-r', '--radius', type=float, default=180., help='Radius of the mask.')
+    maskfits_radial.add_argument('-r2', '--radius2', type=float, help='Second radius of ellipse. Not yet implemented')
+    maskfits_radial.add_argument('-a', '--angle', type=float, help='Angle of radius with respect to the horizontal axis. not yet implemented.')
+    maskfits_radial.add_argument('-xc', '--horizontal-center', type=float, help='Horizontal coordinate of mask center.')
+    maskfits_radial.add_argument('-yc', '--vertical-center', type=float, help='Vertical coordinate of mask center.')
+
+    maskfits_square.add_argument('-xmin', '--horizontal-min', type=float, help='Minimum horizontal coordinate value.')
+    maskfits_square.add_argument('-xmax', '--horizontal-max', type=float, help='Maximum horizontal coorindate value.')
+    maskfits_square.add_argument('-ymin', '--vertical-min', type=float, help='Minimum vertical coordinate value.')
+    maskfits_square.add_argument('-ymax', '--vertical-max', type=float, help='Maximum vertical coordinate value.')
+    ## End MaskFits Parser ##
+
+    model_parser.set_defaults(func=model)
+    maskfits_parser.set_defaults(func=maskFits)
+
+    args=parser.parse_args()
+    args.func(args)
+    
+if __name__=='__main__': cli()

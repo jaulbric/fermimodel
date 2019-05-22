@@ -3,7 +3,7 @@ from distutils.core import setup
 setup(
 	name = 'fermimodel',
 	packages = ['fermimodel',],
-	version = '0.1',
+	version = '1.0',
 	description = 'Tools for generating and editing models for use with the Fermitools.',
 	keywords = 'fermitools gtobssim gtlike',
 	url = 'https://github.com/jaulbric/fermimodel',
@@ -12,6 +12,7 @@ setup(
 	install_requires = [
 		'astropy',
 		'scipy',
+		'xml',
 	],
-	scripts = ['bin/ModelBuilder']
+	scripts = ['bin/fermimodel']
 	)
