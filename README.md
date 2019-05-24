@@ -406,7 +406,7 @@ square:
 >   <dd>Default is False.</dd>
 >   <dt>model_type : str (Optional)</dt>
 >   <dd>Model type. Choices are 'simulation' or 'likelihood'. Input parameters are identical for both model types but the output model will vary depending on whether the model will be used by gtlike or gtobssim.</dd>
-    <dd>Default is 'likelihood'.</dd>
+>   <dd>Default is 'likelihood'.</dd>
 > </dl>
 
 ### model.setROI
