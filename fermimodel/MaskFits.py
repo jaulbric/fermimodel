@@ -53,8 +53,44 @@ def integrateMapCube(data, xcoords, ycoords, energies):
     flux = trapz(dflux, energies)
     return flux
 
-def maskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, radius=180., radius2=None, angle=0., center=(0., 0.), extent=[180., -180., 90., -90.], frame='galactic', unit='degree', clobber=False, float_min=1.17549e-38):
-    """Mask the fits image"""
+def maskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, radius=180., radius2=None, angle=0., center=(0., 0.), extent=[-180., 180., -90., 90.], frame='galactic', unit='degree', clobber=False, float_min=1.17549e-38):
+    """Mask the fits image
+
+    Parameters
+    ----------
+    fitsfile : str
+        Path to the FITS file containing the the image which will be masked.
+    out : str (Optional)
+        Name of the output FITS file for which the mask wiil be applied
+    img_hud : int or float (Optional)
+        Name or integer for the FITS hdu containing the image. Default is 'Primary'.
+    mask_type : str
+        The geometry of the mask to be applied. Choices are 'radial' or 'square'.
+    radius : float (Optional)
+        Radius of the mask if mask_type is radial. Default is 180.
+    radius2 : float (Optional)
+        Second radius of the mask if the mask is not symmetric. Default is to use a symmetric mask.
+    angle : float (Optional)
+        Rotation angle of the ellipse. Default is 0.
+    center : tuple (Optional)
+        Center coordinates (C1, C2) of the radial mask. Default is (0., 0.).
+    extent : list (Optional)
+        [xmin, xmax, ymin, ymax] extent of the square mask. Default is [-180., 180., -90., 90.].
+    frame : str (Optional)
+        Coordinate frame to use with mask coordinates. Choices are 'galactic', 'icrs', 'fk5', 'pixel'. Default is 'galactic'.
+    unit : str (Optional)
+        Units of coordinates. Default is 'degree'.
+    clobber : bool
+        Flag to overwrite a file of the same name if it exists. Default is False.
+    float_min : float
+        Minimum float value to use for pixels in the image after masking. gtobssim doesn't like pixel values <= 0. Default is 1.17549e-38.
+
+    Returns
+    -------
+    out : str or tuple
+        If the input fits image is 2D the output is the full path to the masked fits image. If the input fits image is 3D the output is a tuple whose first entry is the full path to the masked fits image and whose second entry is the integrated flux of the masked fits image.
+
+    """
     if frame == 'galactic':
         frame_str = '(GLAT, GLON)'
     elif frame == 'icrs':

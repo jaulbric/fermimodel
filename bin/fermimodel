@@ -103,7 +103,9 @@ def maskFits(args):
         center = (args.horizontal_center, args.vertical_center)
         radius = args.radius
 
-    out = fermimodel.maskFits(args.input, out=args.output, img_hdu=args.image_hdu, mask_type=args.mask, radius=radius, radius2=args.radius2, angle=args.angle, center=center, extent=args.extent, frame=frame, unit=args.unit, clobber=args.clobber)
+    extent = [args.horizontal_min, args.horizontal_max, args.vertical_min, args.vertical_max]
+
+    out = fermimodel.maskFits(args.input, out=args.output, img_hdu=args.image_hdu, mask_type=args.mask, radius=radius, radius2=args.radius2, angle=args.angle, center=center, extent=extent, frame=frame, unit=args.unit, clobber=args.clobber)
 
     if isinstance(out, tuple):
         print "Output file saved at {0}".format(out[0])
@@ -142,7 +144,7 @@ def cli():
     model_parser.add_argument("-g", "--galname", type=str, default='gll_iem_v07', help="Name of Galactic diffuse component in output model. Default is gll_iem_v07.")
     model_parser.add_argument("-I", "--isofile", type=str, default='$(FERMI_DIR)/refdata/fermi/galdiffuse/iso_P8R3_SOURCE_V2_v1.txt', help="Path to isotropic diffuse template for output model, will default to P8R3 SOURCE class model.")
     model_parser.add_argument("-i", "--isoname",type=str, default='iso_P8R3_SOURCE_V2_v1', help="Name of isotropic diffuse component in output model, default is for P8R3 SOURCE class.")
-    model_parser.add_argument("-e", "--extDir", type=str, default='', help="Path to directory with LAT extended source templates, will default to STs default.")#need to figure out what that is
+    model_parser.add_argument("-e", "--extDir", type=str, default='$(FERMI_DIR)/data/pyBurstAnalysisGUI/templates', help="Path to directory with LAT extended source templates, will default to STs default.")
     model_parser.add_argument("-roi", "--Region", type=roi_type, metavar="(C1, C2, RADIUS)", help="Region of Interest. This will override values taken from event file if one is supplied.")
     model_parser.add_argument('-xc', '--horizontal-center', type=float, help='Horizontal coordinate of ROI center.')
     model_parser.add_argument('-yc', '--vertical-center', type=float, help='Vertical coordinate of ROI center.')

@@ -92,10 +92,11 @@ class likelihoodModel:
                 Sources[sname] = {'ra':srcRA, 'dec':srcDEC, 'glon':srcGL, 'glat':srcGB, 'E':Ext, 'stype':str(specType), 'diffuse':False}
                 specOut = model.createElement('spectrum')
                 
-                if str(specType) == 'PLSuperExpCutoff2':
-                    specOut.setAttribute('type', 'PLSuperExpCutoff')
-                else:
-                    specOut.setAttribute('type', specType)
+                # if str(specType) == 'PLSuperExpCutoff2':
+                #     specOut.setAttribute('type', 'PLSuperExpCutoff')
+                # else:
+                #     specOut.setAttribute('type', specType)
+                specOut.setAttribute('type', specType)
                 
                 spatialOut = model.createElement('spatialModel')
                 srcOut = model.createElement('source')
@@ -320,7 +321,8 @@ class likelihoodModel:
                     spec, free, comments = LikelihoodSpectra.PL2spec(self.roi, self.radLim, self.maxRad, self.varValue, self.var, self.sig, self.nO, F, pli, dist, TS, vi)
                 elif t == 'LogParabola':
                     spec, free, comments = LikelihoodSpectra.LPspec(self.roi, self.radLim, self.maxRad, self.varValue, self.var, self.sig, self.nO, lpf, lpi, p, lpb, dist, TS, vi)
-                elif (t == 'PLSuperExpCutoff') or (t == 'PLSuperExpCutoff2'):
+                elif t in ['PLSuperExpCutoff', 'PLSuperExpCutoff2']:
+                # elif (t == 'PLSuperExpCutoff') or (t == 'PLSuperExpCutoff2'):
                     spec, free, comments = LikelihoodSpectra.CO2spec(self.roi, self.radLim, self.maxRad, self.varValue, self.var, self.sig, self.nO, cof, pleci, p, plecef, plecei, dist, TS, vi)
                 else:
                     print "{0} has spectrum {1} which currently can't be modeled.".format(srcname, t)

@@ -23,7 +23,7 @@ def AddExtendedSource(name, spectype, spatialfunc, directory='', extDir='', ra=N
     name : str
         Name of the souce
     spectype : str
-        Spectrum type. Options: PowerLaw, BrokenPowerLaw, LogParabola, PLSuperExpCutoff2, MapCube, FileSpectrum
+        Spectrum type. Options: PowerLaw, BrokenPowerLaw, LogParabola, PLSuperExpCutoff, MapCube, FileSpectrum
     spatialfunc : str
         Spatial function describing source extension. Options: SpatialMap, RadialDisk, RadialGauss, Isotropic
     directory : str, optional
@@ -139,7 +139,7 @@ def AddExtendedSource(name, spectype, spatialfunc, directory='', extDir='', ra=N
                     raise e
                 else:
                     raise AddSourceError(e)
-    elif (spectype == 'LogParabola') or (spectype == 'PLSuperExpCutoff2'):
+    elif spectype in ['LogParabola', 'PLSuperExpCutoff', 'PLSuperExpCutoff2']:
         try:
             if os.path.isfile(efile):
                 fitsfile = efile
@@ -305,7 +305,7 @@ def AddPointSource(name, spectype, emin, emax, directory, ra=None, dec=None, glo
             child1, child2 = GammaPointSource(spectype, emin, emax, frame=frame, ra=ra, dec=dec, glon=glon, glat=glat, **spectrumargs)
         except SpectrumError as e:
             raise AddSourceError(e)
-    elif (spectype == 'LogParabola') or (spectype == 'PLSuperExpCutoff2') or (spectype == "FileSpectrum"):
+    elif spectype in ['LogParabola', 'PLSuperExpCutoff2', 'PLSuperExpCutoff', 'FileSpectrum']:
         try:
             child1, child2 = FileSpectrum(name, spectype, emin, emax, directory, frame=frame, ra=ra, dec=dec, glon=glon, glat=glat, specfile=specfile, **spectrumargs)
         except SpectrumError as e:

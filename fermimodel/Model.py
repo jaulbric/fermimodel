@@ -53,7 +53,24 @@ class model:
         else:
             self.model_type = model_type
 
-    def setROI(self, roi=None, frame='icrs', unit='degree', allsky=False):
+    def setROI(self, roi=None, frame='fk5', unit='degree', allsky=False):
+        """Set the Region of Interest for the model.
+
+        Parameters
+        ----------
+        roi : tuple
+            (C1, C2, RADIUS)
+        frame : string
+            Coordinate frame for roi center coordinates C1 and C2
+        unit : str
+            Units of roi center coordinates, e.g. 'degree'
+        allsky : bool
+            Flag to set roi to GLAT = 0, GLON = 0, RADIUS = 180.
+
+        Returns
+        -------
+
+        """
         if allsky:
             c = SkyCoord(0., 0., frame='galactic', unit='degree')
             self.roi = (c.fk5.ra.degree, c.fk5.dec.degree, 180.)
@@ -80,7 +97,7 @@ class model:
             else:
                 print "{0} : {1}".format(key, val)
 
-    def loadCatalog(self, catalog=None, GDfile=None, GDname='GalacticDiffuse', ISOfile=None, ISOname='IsotropicDiffuse', ISOpath="$(FERMI_DIR)/refdata/fermi/galdiffuse/isotropic_allsky.fits", normsOnly=False, extDir='', radLim=-1, maxRad=None, ExtraRad=10., sigFree=5., varFree=True, psForce=False, E2CAT=False, makeRegion=False, GIndexFree=False, wd=None, oldNames=False, emin=1.e2, emax=5.e5, frame='fk5', extSrcRes='force-point', apply_mask=False, GDflux=8.4631675, ISOflux=0.):
+    def loadCatalog(self, catalog=None, GDfile=None, GDname='GalacticDiffuse', ISOfile=None, ISOname='IsotropicDiffuse', ISOpath="$(FERMI_DIR)/refdata/fermi/galdiffuse/isotropic_allsky.fits", normsOnly=False, extDir='', radLim=-1, maxRad=None, ExtraRad=10., sigFree=5., varFree=True, psForce=False, E2CAT=False, makeRegion=False, GIndexFree=False, wd=None, oldNames=False, emin=1.e2, emax=5.e5, frame='fk5', extSrcRes='force-point', apply_mask=False, GDflux=0.00084631675, ISOflux=0.):
         """Include sources in the catalog to the model. Optionaly include a galactic and isotropic diffuse models.
 
         Parameters
@@ -128,9 +145,9 @@ class model:
         emax : float (Optional)
             Maximum energy in MeV for source simulation. This should match simulation criteria. Default is 5.e5 MeV.
         GDflux : float (Optional)
-            Integrated flux to use for the galactic diffuse emission model in photons/m^2/s. Default is 8.4631675.
+            Integrated flux to use for the galactic diffuse emission model in photons/cm^2/s. Default is 0.00084631675.
         ISOflux : float (Optional)
-            Integrated flux to use for the isotropic diffuse emission model in photons/m^2/s. If 0.0 flux is calculated on the fly by the simulator. Default is 0.0.
+            Integrated flux to use for the isotropic diffuse emission model in photons/cm^2/s. If 0.0 flux is calculated on the fly by the simulator. Default is 0.0.
 
         Returns
         -------
@@ -167,8 +184,8 @@ class model:
         print 'Creating file and adding sources from Catalog {0}'.format(catalog)
 
         if self.model_type == 'simulation':
-            # self.model, self.Sources = AddCatalogSources.simulation(srcs=catalog, roi=self.roi, var=self.var, psF=self.psF, E2C=self.E2C, nO=self.nO, extD=self.extD, ER=self.ER, sig=self.sig, reg=self.reg, regFile=self.regFile, GIF=self.GIF, wd=self.wd, extSrcRes=self.extSrcRes, GD=GDfile, GDn=GDname, ISO=ISOfile, ISOn=ISOname, ISOpath=ISOpath, oldNames=oldNames, emin=emin, emax=emax, frame=frame, apply_mask=apply_mask, GDflux=GDflux, ISOflux=ISOflux)
-            self.model, self.Sources = AddCatalogSources.simulation(srcs=catalog, roi=self.roi, psF=self.psF, E2C=self.E2C, nO=self.nO, extD=self.extD, ER=self.ER, reg=self.reg, regFile=self.regFile, wd=self.wd, extSrcRes=self.extSrcRes, GD=GDfile, GDn=GDname, ISO=ISOfile, ISOn=ISOname, ISOpath=ISOpath, oldNames=oldNames, emin=emin, emax=emax, frame=frame, apply_mask=apply_mask, GDflux=GDflux, ISOflux=ISOflux)
+            self.oldNames = True
+            self.model, self.Sources = AddCatalogSources.simulation(srcs=catalog, roi=self.roi, psF=self.psF, E2C=self.E2C, nO=self.nO, extD=self.extD, ER=self.ER, reg=self.reg, regFile=self.regFile, wd=self.wd, extSrcRes=self.extSrcRes, GD=GDfile, GDn=GDname, ISO=ISOfile, ISOn=ISOname, ISOpath=ISOpath, oldNames=self.oldNames, emin=emin, emax=emax, frame=frame, apply_mask=apply_mask, GDflux=GDflux, ISOflux=ISOflux)
             self.srcs = catalog
         elif self.model_type == 'likelihood':
             self.model, self.Sources = AddCatalogSources.likelihood(srcs=catalog, roi=self.roi, var=self.var, psF=self.psF, E2C=self.E2C, nO=self.nO, extD=self.extD, radLim=self.radLim, maxRad=self.maxRad, ER=self.ER, sig=self.sig, reg=self.reg, regFile=self.regFile, GIF=self.GIF, wd=self.wd, GD=GDfile, GDn=GDname, ISO=ISOfile, ISOn=ISOname, frame=frame, oldNames=self.oldNames)
@@ -229,12 +246,14 @@ class model:
         Parameters
         ----------
         directory : str
-            Path to directory in which the XML file will be saved.
+            Path to directory in which the file will be saved.
         out : str
-            Name of the XML file
+            Name of the file
 
         Returns
         -------
+        filename : str
+            Full path to file
 
         """
         if directory is None:
@@ -353,7 +372,7 @@ class model:
         print "Run writeXML and writeSrcList to update model files."
 
     def removeSource(self, *name):
-        """Remove source from the model.
+        """Remove source or sources from the model.
 
         Parameters
         ----------
