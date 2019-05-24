@@ -9,7 +9,10 @@ Download the package (This will save the package to a directory named `fermimode
 #### BaSH
 ```bash
 # Get the version of the latest release
-version=`curl -s https://api.github.com/repos/jaulbric/fermimodel/releases/latest | grep "tag_name" | cut -d ":" -f 2 | tr -d " "-\"-,`
+version=`curl -s https://api.github.com/repos/jaulbric/fermimodel/releases/latest \
+| grep "tag_name" \
+| cut -d ":" -f 2 \
+| tr -d " "-\"-,`
 # download and untar the package
 wget https://github.com/jaulbric/fermimodel/archive/$version.tar.gz \
 && mkdir ~/fermimodel \
@@ -21,7 +24,10 @@ wget https://github.com/jaulbric/fermimodel/archive/$version.tar.gz \
 
 ```bash
 # Get the version of the latest release
-set version=`curl -s https://api.github.com/repos/jaulbric/fermimodel/releases/latest | grep "tag_name" | cut -d ":" -f 2 | tr -d " "-\"-,`
+set version=`curl -s https://api.github.com/repos/jaulbric/fermimodel/releases/latest \
+| grep "tag_name" \
+| cut -d ":" -f 2 \
+| tr -d " "-\"-,`
 # download and untar the package
 wget https://github.com/jaulbric/fermimodel/archive/$version.tar.gz \
 && mkdir ~/fermimodel \
@@ -48,7 +54,12 @@ import fermimodel
 Models can then be built by creating an instance of the [model class](#model)
 
 ```python
-mymodel = fermimodel.model(name='mymodel', out='mymodel.xml', frame='galactic', unit='degree', allsky=False, model_type='simulation')
+mymodel = fermimodel.model(name='mymodel',
+                           out='mymodel.xml',
+                           frame='galactic',
+                           unit='degree',
+                           allsky=False,
+                           model_type='simulation')
 ```
 
 The same model instance can be used to generate multiple models. The region of interest can be set either when the model instance is created or by directly calling the function [setROI](#modelsetROI).
@@ -61,7 +72,8 @@ Trying to run mission long simulations takes a very long time because the galact
 
 ```python
 GDfile, GDflux = fermimodel.maskFits('$(FERMI_DIR)/refdata/fermi/galdiffuse/gll_iem_v07.fits',
-                                   out='gll_iem_v07_masked.fits', mask_type='radial',
+                                   out='gll_iem_v07_masked.fits',
+                                   mask_type='radial',
                                    radius=7.071 + 10.,
                                    center=(10.8229, 41.2415),
                                    frame='fk5',
@@ -393,7 +405,7 @@ square:
 >   <dd>Flag to set region of interest to the entire sky. By default this sets the region of interest center to the galactic center (l=0, b=0).</dd>
 >   <dd>Default is False.</dd>
 >   <dt>model_type : str (Optional)</dt>
->   <dd>Model type. Choices are 'simulation' or 'likelihood'. Input parameters are identical for both model types but the output model will vary depending on whether the model will be used by gtlike or gtobssim.
+>   <dd>Model type. Choices are 'simulation' or 'likelihood'. Input parameters are identical for both model types but the output model will vary depending on whether the model will be used by gtlike or gtobssim.</dd>
     <dd>Default is 'likelihood'.</dd>
 > </dl>
 
