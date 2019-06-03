@@ -192,7 +192,10 @@ def maskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, rad
 
         # Have to memmap data arrays because of intermediate arrays created by trapz
         tmp_dir = mkdtemp()
-        energies_shape = hdu_list['ENERGIES'].data.energy.shape
+        try:
+            energies_shape = hdu_list['ENERGIES'].data.energy.shape
+        except AttributeError:
+            energies_shape = hdu_list['ENERGIES'].data.Energy.shape
 
         m_data_path = os.path.join(tmp_dir, 'data_array.dat')
         m_energies_path = os.path.join(tmp_dir, 'energy_array.dat')
@@ -211,7 +214,10 @@ def maskFits(fitsfile, out='maskedimage.fits', img_hdu=None, mask_type=None, rad
             m_data[:,:,:] = hdu_list[img_hdu].data[:,:,:]
             m_xcoords[:,:] = np.where(xcoords <= 180, xcoords, xcoords - 360.)[:,:]
         m_ycoords[:,:] = ycoords[:,:]
-        m_energies[:] = hdu_list['ENERGIES'].data.energy[:]
+        try:
+            m_energies[:] = hdu_list['ENERGIES'].data.energy[:]
+        except AttributeError:
+            m_energies[:] = hdu_list['ENERGIES'].data.Energy[:]
         del m_data
         del m_xcoords
         del m_ycoords

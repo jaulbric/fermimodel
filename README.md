@@ -62,13 +62,13 @@ mymodel = fermimodel.model(name='mymodel',
                            model_type='simulation')
 ```
 
-The same model instance can be used to generate multiple models. The region of interest can be set either when the model instance is created or by directly calling the function [setROI](#modelsetROI).
+The same model instance can be used to generate multiple models. The region of interest can be set either when the model instance is created or by directly calling the function [setROI](#modelsetroi).
 
 ```python
 mymodel.setROI(roi=(10.8229, 41.2415, 7.071), frame='fk5', unit='degree', allsky=False)
 ```
 
-Trying to run mission long simulations takes a very long time because the galactic diffuse emission flux is quite large (relatively). It is therefore useful to [mask](#maskFits) the galactic diffuse model so that pixels outside the region of interest have a very low flux.
+Trying to run mission long simulations takes a very long time because the galactic diffuse emission flux is quite large (relatively). It is therefore useful to [mask](#maskFits) the galactic diffuse model so that pixels outside the region of interest have a very low flux. Also, see the [note](#using-the-latest-galactic-diffuse-model-for-simulations) on using the latest galactic diffuse model.
 
 ```python
 GDfile, GDflux = fermimodel.maskFits('$(FERMI_DIR)/refdata/fermi/galdiffuse/gll_iem_v07.fits',
@@ -372,6 +372,41 @@ square:
   -ymax VERTICAL_MAX, --vertical-max VERTICAL_MAX
                         Maximum vertical coordinate value.
 ```
+
+## Notes
+
+### Using the Latest Galactic Diffuse Model for Simulations
+
+The latest galactic diffuse model `gll_iem_v07.fits` is missing some headers that gtobssim requires. Therefore if one intends to run simulations using this model the FITS file must be edited so that it includes all the necessary headers. This can be accomplished in python with
+
+```python
+import astropy.io.fits as pyfits
+import datetime
+
+with pyfits.open('gll_iem_v07.fits', mode='update') as gd_model:
+    gd_model[0].header['CRPIX3'] = 1.0
+    gd_model[0].header['CTYPE3'] = 'Energy'
+    gd_model[0].header['CUNIT3'] = 'MeV'
+    gd_model[0].header['history'] = 'File updated {0} to include additional headers'.format(datetime.datetime.today().strftime('%m/%d/%Y'))
+    gd_model.flush()
+```
+
+This will update the header for the model file. Alternatively one might prefer to save revised model to a different file
+
+```python
+import astropy.io.fits as pyfits
+import datetime
+
+gd_model = pyfits.open('gll_iem_v07.fits')
+gd_model[0].header['CRPIX3'] = 1.0
+gd_model[0].header['CTYPE3'] = 'Energy'
+gd_model[0].header['CUNIT3'] = 'MeV'
+gd_model[0].header['history'] = 'File created {0}'.format(datetime.datetime.today().strftime('%m/%d/%Y'))
+
+gd_model.writeto('gll_iem_v07_updated.fits')
+```
+
+This will create a new file `gll_iem_v07_updated.fits` that contains the necessary headers for simulations.
 
 ## Definitions
 
