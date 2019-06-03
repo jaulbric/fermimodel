@@ -10,6 +10,8 @@ import datetime
 from scipy.integrate import trapz
 from tempfile import mkdtemp
 
+d2r = np.pi/180.
+
 class MaskTypeError(Exception):
     """Raise if the type of mask requested is not allowed"""
     pass
