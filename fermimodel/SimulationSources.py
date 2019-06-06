@@ -23,7 +23,7 @@ def AddExtendedSource(name, spectype, spatialfunc, directory='', extDir='', ra=N
     name : str
         Name of the souce
     spectype : str
-        Spectrum type. Options: PowerLaw, BrokenPowerLaw, LogParabola, PLSuperExpCutoff, MapCube, FileSpectrum
+        Spectrum type. Options: PowerLaw, BrokenPowerLaw, LogParabola, PLSuperExpCutoff, PLSuperExpCutoff2, MapCube, FileSpectrum
     spatialfunc : str
         Spatial function describing source extension. Options: SpatialMap, RadialDisk, RadialGauss, Isotropic
     directory : str, optional

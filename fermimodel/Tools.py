@@ -91,7 +91,7 @@ def getFlux(spectype, emin, emax, **spectrumargs):
         lpi = spectrumargs['lp_index']
         dflux = lambda energy: lpf*((energy/p)**(- lpi - lpb*np.log(energy/p)))
         flux, fluxunc = quad(dflux, emin, emax, epsabs=0)
-    elif spectype == 'PLSuperExpCutoff2':
+    elif spectype in ['PLSuperExpCutoff', 'PLSuperExpCutoff2']:
         cof = spectrumargs['plec_flux_density']
         plecef = spectrumargs['plec_expfactor']
         pleci = spectrumargs['plec_index']
@@ -183,7 +183,7 @@ def writeSpectrum(name, spectype, emin, emax, directory, float_min=1.e-37, **spe
             num = np.ceil(10.*(np.log10(emax) - np.log10(emin))).astype(int) + 1 # Number of energy bins, roughly 10 per decade
             E = np.logspace(np.log10(emin), np.log10(emax), num=num)
             dflux = lpf*((E/p)**(- lpi - lpb*np.log(E/p)))
-        elif spectype == 'PLSuperExpCutoff2':
+        elif spectype in ['PLSuperExpCutoff', 'PLSuperExpCutoff2']:
             cof = spectrumargs['plec_flux_density']
             p = spectrumargs['pivot_energy']
             pleci = spectrumargs['plec_index']

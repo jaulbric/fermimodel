@@ -283,7 +283,7 @@ class model:
         name : str
             Name of the source to add.
         spectrum_type : str
-            Spectral type of the source. Options: Monochromatic, PowerLaw, BrokenPowerLaw, LogParabola, PLSuperExpCutoff2, MapCube, FileSpectrum
+            Spectral type of the source. Options: Monochromatic, PowerLaw, BrokenPowerLaw, LogParabola, PLSuperExpCutoff2, PLSuperExpCutoff, MapCube, FileSpectrum
         ra : float, optional
             Right Ascension of source in degrees
         dec : float, optional
@@ -337,7 +337,7 @@ class model:
         -------
 
         """
-        allowed_spectypes = ["Monochromatic", "PowerLaw", "BrokenPowerLaw", "LogParabola", "PLSuperExpCutoff2", "MapCube", "FileSpectrum"]
+        allowed_spectypes = ["Monochromatic", "PowerLaw", "BrokenPowerLaw", "LogParabola", "PLSuperExpCutoff", "PLSuperExpCutoff2", "MapCube", "FileSpectrum"]
         if spectrum_type not in allowed_spectypes:
             raise AddSourceError("Cannot add a source with spectrum type {0}. Options are: {1}".format(spectrum_type, ", ".join(allowed_spectypes)))
 
